@@ -1,0 +1,10 @@
+{
+	"id": "ai-chat",
+	"name": "AI Chat",
+	"version": "1.0.0",
+	"minAppVersion": "1.7.2",
+	"description": "Embed ChatGPT, Claude, Gemini, Grok, DeepSeek and Perplexity in a sidebar. Send vault notes and selected text directly into AI chat.",
+	"author": "Mohammed Thansheer",
+	"authorUrl": "https://github.com/mohammedthansheer",
+	"isDesktopOnly": true
+}

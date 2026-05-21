@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#6366f1"/>
+
+  <!-- App window outline -->
+  <rect x="60" y="92" width="392" height="328" rx="22" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="8"/>
+
+  <!-- Sidebar vertical divider -->
+  <line x1="188" y1="92" x2="188" y2="420" stroke="rgba(255,255,255,0.18)" stroke-width="8"/>
+
+  <!-- Left sidebar — note lines representing vault notes -->
+  <rect x="92"  y="148" width="74" height="12" rx="6" fill="white" opacity="0.75"/>
+  <rect x="92"  y="174" width="74" height="12" rx="6" fill="white" opacity="0.75"/>
+  <rect x="92"  y="200" width="52" height="12" rx="6" fill="white" opacity="0.50"/>
+  <rect x="92"  y="226" width="74" height="12" rx="6" fill="white" opacity="0.75"/>
+  <rect x="92"  y="252" width="60" height="12" rx="6" fill="white" opacity="0.50"/>
+  <rect x="92"  y="278" width="74" height="12" rx="6" fill="white" opacity="0.75"/>
+  <rect x="92"  y="304" width="40" height="12" rx="6" fill="white" opacity="0.40"/>
+
+  <!-- Chat bubble body -->
+  <rect x="214" y="132" width="214" height="168" rx="22" fill="white" opacity="0.96"/>
+
+  <!-- Chat bubble tail -->
+  <path d="M 244 300 L 214 358 L 294 300 Z" fill="white" opacity="0.96"/>
+
+  <!-- Chat bubble text lines -->
+  <rect x="242" y="170" width="158" height="14" rx="7" fill="#6366f1" opacity="0.48"/>
+  <rect x="242" y="198" width="126" height="14" rx="7" fill="#6366f1" opacity="0.34"/>
+  <rect x="242" y="226" width="144" height="14" rx="7" fill="#6366f1" opacity="0.40"/>
+  <rect x="242" y="254" width="96"  height="14" rx="7" fill="#6366f1" opacity="0.28"/>
+
+  <!-- AI sparkle badge -->
+  <circle cx="376" cy="372" r="34" fill="white" opacity="0.96"/>
+  <path d="M376 348 L381 364 L398 364 L385 374 L390 390 L376 380 L362 390 L367 374 L354 364 L371 364 Z" fill="#6366f1"/>
+</svg>
