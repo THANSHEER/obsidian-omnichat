@@ -394,7 +394,7 @@ export function AIChatPanel({
 
 	async function applyTemplate(text: string): Promise<void> {
 		setShowTemplates(false);
-		if (!text.trim()) { new Notice("This template is empty — edit it in Settings."); return; }
+		if (!text.trim()) { new Notice("This template is empty — edit it in settings."); return; }
 		const injected = await injectIntoWebview(text);
 		if (!injected) {
 			await navigator.clipboard.writeText(text);

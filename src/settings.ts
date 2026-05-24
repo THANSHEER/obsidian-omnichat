@@ -153,8 +153,8 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Enable Copilot")
-			.setDesc("Show Microsoft Copilot in the service dropdown.")
+			.setName("Enable copilot")
+			.setDesc("Show microsoft copilot in the service dropdown.")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.enableCopilot).onChange(async (v) => {
 					this.plugin.settings.enableCopilot = v;
@@ -164,8 +164,8 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Enable Manus AI")
-			.setDesc("Show Manus AI in the service dropdown.")
+			.setName("Enable manus AI")
+			.setDesc("Show manus AI in the service dropdown.")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.enableManus).onChange(async (v) => {
 					this.plugin.settings.enableManus = v;
@@ -175,8 +175,8 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Enable Kimi")
-			.setDesc("Show Kimi (Moonshot AI) in the service dropdown.")
+			.setName("Enable kimi")
+			.setDesc("Show kimi (moonshot AI) in the service dropdown.")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.enableKimi).onChange(async (v) => {
 					this.plugin.settings.enableKimi = v;
@@ -342,10 +342,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Save folder")
-			.setDesc("Vault folder where notes created via the 'Save response' button are stored.")
+			.setDesc("Vault folder where notes created via the 'save response' button are stored.")
 			.addText((t) =>
 				t
-					.setPlaceholder("AI Notes")
+					.setPlaceholder("AI notes")
 					.setValue(this.plugin.settings.saveNoteFolder)
 					.onChange(async (value) => {
 						this.plugin.settings.saveNoteFolder = value;
@@ -359,7 +359,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 			.setName("Add template")
 			.setDesc("Templates appear in the sidebar and inject a prompt into the active AI service with one click.")
 			.addButton((btn) => {
-				btn.setButtonText("+ Add").setCta().onClick(async () => {
+				btn.setButtonText("+ add").setCta().onClick(async () => {
 					this.plugin.settings.promptTemplates.push({
 						id: Date.now().toString(),
 						label: "New template",
@@ -387,7 +387,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 					t.inputEl.rows = 2;
-					t.inputEl.style.width = "100%";
+					t.inputEl.addClass("vc-template-textarea");
 					return t;
 				})
 				.addButton((btn) => {

@@ -6,17 +6,20 @@ import {
 	PERPLEXITY_URL,
 	GEMINI_URL,
 	GROK_URL,
+	COPILOT_URL,
+	MANUS_URL,
+	KIMI_URL,
 	SERVICE_URLS,
 } from "../constants";
 
 describe("SERVICE_URLS", () => {
-	it("has exactly six service entries", () => {
-		expect(Object.keys(SERVICE_URLS)).toHaveLength(6);
+	it("has exactly nine service entries", () => {
+		expect(Object.keys(SERVICE_URLS)).toHaveLength(9);
 	});
 
 	it("contains all expected service keys", () => {
 		expect(Object.keys(SERVICE_URLS)).toEqual(
-			expect.arrayContaining(["chatgpt", "claude", "deepseek", "perplexity", "gemini", "grok"]),
+			expect.arrayContaining(["chatgpt", "claude", "deepseek", "perplexity", "gemini", "grok", "copilot", "manus", "kimi"]),
 		);
 	});
 
@@ -49,6 +52,18 @@ describe("SERVICE_URLS", () => {
 	it("grok entry matches GROK_URL", () => {
 		expect(SERVICE_URLS.grok).toBe(GROK_URL);
 	});
+
+	it("copilot entry matches COPILOT_URL", () => {
+		expect(SERVICE_URLS.copilot).toBe(COPILOT_URL);
+	});
+
+	it("manus entry matches MANUS_URL", () => {
+		expect(SERVICE_URLS.manus).toBe(MANUS_URL);
+	});
+
+	it("kimi entry matches KIMI_URL", () => {
+		expect(SERVICE_URLS.kimi).toBe(KIMI_URL);
+	});
 });
 
 describe("individual URL constants", () => {
@@ -59,6 +74,9 @@ describe("individual URL constants", () => {
 		PERPLEXITY_URL,
 		GEMINI_URL,
 		GROK_URL,
+		COPILOT_URL,
+		MANUS_URL,
+		KIMI_URL,
 	};
 
 	for (const [name, url] of Object.entries(urlMap)) {
