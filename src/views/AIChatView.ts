@@ -575,29 +575,31 @@ export class AIChatView extends ItemView {
 
 	// ── Navigation ────────────────────────────────────────────
 
-	private isValidWebviewUrl(url: string): boolean {
+	private sanitizeWebviewUrl(url: string): string | null {
 		try {
 			const parsed = new URL(url);
-			return parsed.protocol === "http:" || parsed.protocol === "https:";
+			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+			return parsed.href;
 		} catch {
-			return false;
+			return null;
 		}
 	}
 
 	private switchToUrl(url: string): void {
-		if (!this.isValidWebviewUrl(url)) {
+		const safeUrl = this.sanitizeWebviewUrl(url);
+		if (!safeUrl) {
 			console.warn("Invalid URL attempted:", url);
 			return;
 		}
-		this.activeUrl = url;
-		if (this.isPrimary) void this.plugin.setWebAppUrl(url);
-		else                void this.plugin.setSplitPanelUrl(url);
+		this.activeUrl = safeUrl;
+		if (this.isPrimary) void this.plugin.setWebAppUrl(safeUrl);
+		else                void this.plugin.setSplitPanelUrl(safeUrl);
 		this.updateServiceDot();
-		if (this.webview && this.webview.src !== url) {
+		if (this.webview && this.webview.src !== safeUrl) {
 			this.webviewReady = false;
 			this.setLoading(true);
 			this.fallbackEl?.hide();
-			this.webview.src = url;
+			this.webview.src = safeUrl;
 		}
 	}
 
