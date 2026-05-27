@@ -1,7 +1,7 @@
 {
 	"name": "aibrowser-chat",
 	"version": "1.2.0",
-	"description": "Obsidian plugin — embeds AI chat services in a sidebar and injects vault notes as context.",
+	"description": "Obsidian plugin — OmniChat embeds any AI service (ChatGPT, Claude, Gemini, Grok, DeepSeek and more) in a sidebar and injects vault notes as context.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

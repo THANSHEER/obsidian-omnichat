@@ -1,155 +1,97 @@
 # Development Guide
 
-Everything you need to get the plugin running locally, understand the build system, and iterate quickly.
-
----
+This guide covers local setup, build commands, testing, and release workflow for OmniChat.
 
 ## Prerequisites
 
 | Tool | Minimum version | Purpose |
 |---|---|---|
-| Node.js | 22 | Runtime for build tools |
-| npm | 9 | Package manager |
+| Node.js | 22 | Build tooling |
+| npm | 9 | Package management |
 | Git | any | Version control |
-| Obsidian (desktop) | 1.7.2 | Plugin host |
-
----
+| Obsidian desktop | 1.7.2 | Plugin host |
 
 ## Initial setup
 
 ```bash
-# 1. Clone
 git clone https://github.com/THANSHEER/AI-Browser-Chat
 cd AI-Browser-Chat
-
-# 2. Install dependencies
 npm install
 ```
 
-No environment variables or external services are required. The plugin runs entirely locally.
-
----
+No API keys, backend services, or environment variables are required.
 
 ## Build commands
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | esbuild in watch mode — rebuilds `main.js` on every file save |
-| `npm run build` | Type-check (`tsc --noEmit`) then production build (minified, no sourcemaps) |
-| `npm run lint` | ESLint across all TypeScript source files |
-| `npm run test` | Run unit tests with Vitest |
-| `npm run version` | Bumps version in `manifest.json` and `versions.json`, then stages both |
+| `npm run dev` | Watch build with esbuild |
+| `npm run build` | Type-check and produce the production bundle |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run Vitest unit tests |
+| `npm run version` | Update `manifest.json` and `versions.json` from `package.json` |
 
-All build output lands in the **repo root** as `main.js` (not in a `dist/` folder), alongside `manifest.json` and `styles.css`. This is how Obsidian expects plugin files to be laid out.
+Build output is written to the repo root as `main.js`, alongside `manifest.json` and `styles.css`.
 
----
-
-## Linking the plugin into a vault
-
-Symlinking the repo directory into an Obsidian vault's plugin folder gives you zero-copy hot-reload during development:
+## Link into a vault
 
 ```bash
 # macOS / Linux
 ln -s "$(pwd)" "/Users/<you>/path-to-vault/.obsidian/plugins/aibrowser-chat"
 
-# Windows — run as Administrator in Command Prompt
-mklink /D "%APPDATA%\obsidian\plugins\aibrowser-chat" "%cd%"
+# Windows (Administrator Command Prompt)
+mklink /D "%APPDATA%\\obsidian\\plugins\\aibrowser-chat" "%cd%"
 ```
 
 Then:
-1. Open Obsidian → **Settings → Community plugins → Installed plugins**.
-2. Find **AI Browser Chat** and enable it.
-3. After any code change, either:
-   - Open Obsidian's developer console (`Ctrl+Shift+I`) and press **Ctrl+R** to reload, or
-   - Toggle the plugin off and back on in settings.
 
-> **Tip**: Keep developer tools open (View → Toggle Developer Tools) for quick access to console logs and element inspection inside the webview.
-
----
+1. Open Obsidian.
+2. Go to **Settings → Community plugins → Installed plugins**.
+3. Enable **OmniChat**.
+4. Reload Obsidian after code changes with `Ctrl+R` in developer tools, or disable and re-enable the plugin.
 
 ## Project layout
 
-```
+```text
 src/
-  main.ts                    Plugin lifecycle, settings, view/command registration
-  settings.ts                Persistent settings interface and settings tab UI
-  constants.ts               Service URL constants
-  utils.ts                   Shared helpers (normalizeUrl, getServiceKey, etc.)
-  commands/index.ts          Command palette entry points
-  components/
-    AIChatPanel.tsx           Root React component — webview + context toolbar
+  main.ts                    Plugin lifecycle, view registration, commands, settings
+  settings.ts                Persisted settings and settings tab UI
+  constants.ts               Built-in AI service URL constants
+  utils.ts                   Shared helpers
+  commands/index.ts          Command palette registrations
   modals/
-    FilePickerModal.ts        Fuzzy note picker modal
-    FolderPickerModal.ts      Fuzzy folder picker modal
+    ContextSearchModal.ts    Search notes by name and content
+    FolderPickerModal.ts     Pick folders for context
+    SaveDestinationModal.ts  Save AI output into the vault
   views/
-    AIChatView.tsx            Obsidian ItemView wrapper that mounts the React tree
-styles.css                   All CSS using Obsidian CSS custom properties
-manifest.json                Plugin metadata (id, version, minAppVersion, isDesktopOnly)
-esbuild.config.mjs           Bundle config: external deps, JSX transform, CJS output
-tsconfig.json                TypeScript config: ES2018 target, strict mode, no emit
-eslint.config.mts            ESLint: typescript-eslint + eslint-plugin-obsidianmd
+    AIChatView.ts            Imperative ItemView for webview and toolbar UI
+styles.css                   Plugin styling
+manifest.json                Obsidian plugin metadata
+esbuild.config.mjs           esbuild bundle configuration
+tsconfig.json                TypeScript strict config
+eslint.config.mts            ESLint configuration
 ```
-
----
-
-## esbuild configuration notes
-
-- **Format**: CommonJS (`cjs`) — required by Obsidian's plugin loader.
-- **JSX**: `automatic` — uses React 18's JSX transform, no `import React` needed per file.
-- **Target**: `es2018` — matches Obsidian's minimum Electron version.
-- **External**: `obsidian`, `electron`, all `@codemirror/*` and `@lezer/*` packages, and Node built-ins are external — Obsidian provides them at runtime.
-- **Sourcemaps**: inlined in dev mode, stripped in production.
-- **Tree-shaking**: enabled — unused exports are dropped.
-
----
-
-## TypeScript notes
-
-Strict mode is fully enabled:
-- `noImplicitAny` — no untyped `any` escapes
-- `strictNullChecks` — null/undefined must be handled explicitly
-- `useUnknownInCatchVariables` — caught errors are typed `unknown`, not `Error`
-
-Avoid `as any` casts. If you need to access a property TypeScript doesn't know about, use a typed local interface or a type guard.
-
----
-
-## ESLint rules of note
-
-`eslint-plugin-obsidianmd` catches patterns that break in Obsidian's renderer environment:
-
-- `document.createElement` called outside of a `useEffect` or event handler — triggers a lint error. Always create DOM elements inside effects.
-- Synchronous vault writes — use the async Obsidian API.
-
-Run `npm run lint` before opening a PR. The CI pipeline will also run it.
-
----
 
 ## Debugging
 
-### Browser devtools inside the webview
+### Webview inspection
 
-Right-click inside the embedded webview → **Inspect Element**. Alternatively, open Obsidian's main developer console and run:
-
-```js
-require('electron').remote.webContents.getAllWebContents()
-```
-
-to find the webview's `webContents` and open a dedicated devtools window for it.
+Right-click inside the embedded page and use **Inspect Element** when available. You can also inspect from Obsidian's developer tools.
 
 ### Context injection failures
 
-`executeJavaScript` errors are silently caught in `handleAddContext`. To debug injection, temporarily remove the `catch {}` block and watch the console. The most common causes are:
-- The webview hasn't finished loading (`dom-ready` not yet fired)
-- The target site changed its input selector
-- The Electron partition is blocked by content security policy
+Injection is best-effort. Common failure cases:
 
----
+- The webview has not finished loading.
+- The target AI site changed its DOM structure.
+- The embedded page blocks the interaction path.
 
-## Releasing a new version
+Clipboard fallback is always the reliable path.
+
+## Releasing
 
 1. Update `package.json` version.
-2. Run `npm run version` — updates `manifest.json` and `versions.json` and stages them.
-3. Run `npm run build` to generate the final `main.js`.
-4. Commit and tag: `git tag <version> && git push --tags`.
-5. Create a GitHub release and attach `main.js`, `manifest.json`, and `styles.css` as release assets.
+2. Run `npm run version`.
+3. Run `npm run build`.
+4. Commit, tag, and push.
+5. Create a GitHub release and attach `main.js`, `manifest.json`, and `styles.css`.

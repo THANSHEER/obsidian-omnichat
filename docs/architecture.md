@@ -1,138 +1,95 @@
 # Architecture
 
-This document describes how AI Browser Chat is structured, how data flows through it, and the key design decisions behind it.
-
----
+This document explains how OmniChat is structured and how the main data flows work.
 
 ## What the plugin does
 
-AI Browser Chat embeds AI chat services (ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok) in an Obsidian sidebar using an Electron `<webview>`. It also provides a vault context feature: the user selects notes or folders, clicks **Add**, and the note content is injected into the AI chat input (or copied to the clipboard if injection is unavailable).
-
----
+OmniChat embeds AI chat services in an Obsidian sidebar using an Electron `<webview>`. It includes built-in support for ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, and Kimi, and it can also expose custom AI URLs in the same selector. The plugin can inject selected text, send vault context, apply prompt templates, and save AI output back into the vault.
 
 ## Tech stack
 
 | Concern | Choice |
 |---|---|
-| Plugin framework | Obsidian Plugin API (`obsidian` npm package) |
-| UI | React 18 (JSX transform, no class components) |
-| Language | TypeScript (strict mode) |
+| Plugin framework | Obsidian Plugin API |
+| UI | Imperative DOM inside `ItemView` |
+| Language | TypeScript with strict mode |
 | Build | esbuild |
-| Linting | ESLint + `typescript-eslint` + `eslint-plugin-obsidianmd` |
-
----
+| Testing | Vitest |
 
 ## Module map
 
-```
+```text
 src/
-  main.ts              Plugin entry point. Owns lifecycle, settings load/save,
-                       view registration, ribbon, and command registration.
-
-  settings.ts          DockSettings interface, DEFAULT_SETTINGS, and
-                       AIChatSettingTab. All persisted state lives here.
-                       contextItems carries the persistent context memory.
-
-  constants.ts         URL constants for all six AI services.
-
-  commands/
-    index.ts           registerCommands() — thin wrappers that call methods on
-                       AIChatPlugin. Logic stays in main.ts.
-
+  main.ts                    Plugin lifecycle, commands, and view registration
+  settings.ts                Persisted settings and settings tab
+  constants.ts               Built-in service URLs
+  utils.ts                   Shared helpers like URL normalization and context building
+  commands/index.ts          Command registration
   views/
-    AIChatView.tsx     Obsidian ItemView that mounts the React root.
-                       AIChatView.renderView() is the single call site
-                       that renders <AIChatPanel>. New plugin-level state
-                       is threaded down as props here.
-
-  components/
-    AIChatPanel.tsx    Root React component. Owns the <webview> lifecycle
-                       (create, src updates, event listeners, teardown)
-                       and the context injection logic.
-
+    AIChatView.ts            Main panel UI and webview lifecycle
   modals/
-    FilePickerModal.ts    FuzzySuggestModal<TFile> — picks a single note.
-    FolderPickerModal.ts  FuzzySuggestModal<TFolder> — picks a folder.
-                          Both are Obsidian class-based. Instantiate with
-                          `new XModal(app, callback).open()` inside handlers.
+    ContextSearchModal.ts    Note search modal
+    FolderPickerModal.ts     Folder picker modal
+    SaveDestinationModal.ts  Save AI output into the vault
 ```
 
----
+## Primary flows
 
-## Data flow
+### Switching services
 
-```
-User action (button click)
-  │
-  ├─ Switch service → setActiveUrl → webview.src updated → webview navigates
-  │
-  └─ Context management:
-       addActiveFile / addFile / addFolder / addAllOpenFiles
-         → setItems (React state)
-         → useEffect fires → onContextItemsChange(items)
-         → plugin.setContextItems(items)
-         → saveSettings() (persisted to data.json)
+1. User changes the selector.
+2. `AIChatView` resolves the target URL.
+3. The webview `src` updates.
+4. The selected URL is persisted for the main or split panel.
 
-User clicks Add
-  │
-  ├─ handleAddContext() reads vault files via app.vault.read()
-  ├─ Formats context string
-  ├─ navigator.clipboard.writeText(context)   ← always runs (reliable fallback)
-  └─ webview.executeJavaScript(injectScript)  ← best-effort; may fail silently
-       on success → Notice "Context pasted in chat"
-       on failure → Notice "Context copied — paste with Cmd+V / Ctrl+V"
-```
+### Building context
 
----
+1. User adds the active note, open tabs, a searched note, or a folder.
+2. `AIChatView` updates `items`.
+3. `plugin.setContextItems(items)` persists the selection into plugin settings.
+
+### Sending context
+
+1. `handleAddContext()` reads vault files with `app.vault.read()`.
+2. Content is assembled by `buildContextString()`.
+3. Clipboard write happens first as the reliable fallback.
+4. `executeJavaScript()` tries to paste into the active chat page.
+5. A notice reports whether injection succeeded or the user should paste manually.
+
+### Saving AI output
+
+1. User chooses **Save selection** or **Save clipboard**.
+2. The plugin reads the selection from the webview or from the clipboard.
+3. `SaveDestinationModal` creates a markdown note in the configured vault folder.
 
 ## Key design decisions
 
-### Webview created imperatively, not declaratively
+### Webview is imperative
 
-React cannot reliably render Electron's `<webview>` tag. The element is created with `document.createElement("webview")`, appended to a `div` ref inside a `useEffect`, and removed on cleanup. Do not attempt to render `<webview>` inside JSX.
+The Electron `<webview>` is created and managed imperatively inside `AIChatView`. Do not move it to declarative JSX.
 
-### Context injection is best-effort
+### Injection is best-effort
 
-`executeJavaScript` may fail if the webview hasn't fully loaded, the target site changed its DOM structure, or Electron IPC is not ready. The clipboard copy runs first (before any injection attempt), so the user always has a reliable path to paste the context.
+The plugin cannot guarantee DOM selectors inside third-party AI websites will remain stable. Clipboard fallback is the reliable path.
 
-### Context persistence via settings
+### Persistence lives in settings
 
-Selected files and folders are saved to `DockSettings.contextItems` whenever they change (through the `onContextItemsChange` prop callback → `plugin.setContextItems` → `saveData`). This gives the user persistent "memory" across service switches and Obsidian restarts with no extra infrastructure.
+Context items, service toggles, prompt templates, custom services, theme choice, and save-folder settings are all stored in plugin data.
 
-### No global state, no stores
+### No backend
 
-State flows down via props and up via callbacks. The component tree is shallow enough that prop drilling is fine. Do not introduce a Context provider or state library.
+This is a local browser-wrapper plugin. Do not add a remote service or server dependency.
 
-### Modals are class-based, not hooks
+### Desktop only
 
-Obsidian modals extend `FuzzySuggestModal` or `Modal`. They must be instantiated inside event handlers; do not try to render them as React components.
+The plugin depends on Electron webviews and is intentionally desktop-only.
 
-### Desktop-only, no mobile
+## Adding a new built-in AI service
 
-`manifest.json` sets `"isDesktopOnly": true`. The `<webview>` Electron API does not exist in Obsidian mobile. There is no mobile fallback and none is planned. Do not add mobile compatibility shims.
-
----
-
-## Adding a new AI service
-
-The service selector is a native `<select>` — adding a new service is one `<option>` line plus a few supporting entries.
-
-1. Add a URL constant in `constants.ts`.
-2. Add an entry to `SERVICE_URLS` in `AIChatPanel.tsx`.
-3. Add a URL-pattern match in `getServiceKey()` in `utils.ts`.
-4. Add `<option value="newkey">Service Name</option>` inside the `<select>` in `AIChatPanel.tsx`.
-5. Add a `vc-svc-dot--newkey` colour rule in `styles.css`.
-6. Add `enableNewService` to `DockSettings` + `DEFAULT_SETTINGS` in `settings.ts`, wire the settings tab toggle, and pass the new prop from `AIChatView.renderView()`.
-7. Add `openNewService()` in `main.ts` and a command entry in `commands/index.ts`.
-
-## Adding a new setting
-
-1. Add the field to `DockSettings` in `settings.ts` with a default in `DEFAULT_SETTINGS`.
-2. Add a `new Setting(containerEl)…` block in `AIChatSettingTab.display()`.
-3. Pass it down as a prop from `AIChatView.renderView()` if the component needs it.
-
----
-
-## Build output
-
-esbuild bundles everything into a single `main.js` in the repo root. Obsidian loads this file, `manifest.json`, and `styles.css` from the plugin directory. Source maps are inlined in dev mode and stripped in production.
+1. Add the URL constant in [src/constants.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/constants.ts).
+2. Extend `SERVICE_URLS`.
+3. Add hostname detection in [src/utils.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/utils.ts).
+4. Add the selector option in [src/views/AIChatView.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/views/AIChatView.ts).
+5. Add the settings toggle in [src/settings.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/settings.ts).
+6. Add the command and `open<Service>()` method in [src/commands/index.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/commands/index.ts) and [src/main.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/main.ts).
+7. Add the service color rule in `styles.css`.

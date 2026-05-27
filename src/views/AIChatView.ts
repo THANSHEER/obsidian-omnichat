@@ -59,7 +59,7 @@ export class AIChatView extends ItemView {
 	}
 
 	getViewType():    string { return this.isPrimary ? AI_CHAT_VIEW_TYPE : AI_CHAT_SPLIT_VIEW_TYPE; }
-	getDisplayText(): string { return this.isPrimary ? "AI Portal" : "AI Portal (2)"; }
+	getDisplayText(): string { return this.isPrimary ? "OmniChat" : "OmniChat (2)"; }
 	getIcon():        string { return "messages-square"; }
 
 	// ── Lifecycle ─────────────────────────────────────────────
