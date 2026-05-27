@@ -4,41 +4,37 @@
 
 | Requirement | Details |
 |---|---|
-| Obsidian | ≥ 1.7.2 |
+| Obsidian | 1.7.2 or newer |
 | Platform | macOS, Windows, or Linux desktop only |
-| Node.js (dev only) | ≥ 22 |
+| Node.js (dev only) | 22 or newer |
 
-> **Desktop only** — the plugin uses Electron's `<webview>` tag, which is unavailable in Obsidian mobile.
+> **Desktop only**: OmniChat relies on Electron's `<webview>` tag, which is not available in Obsidian mobile.
 
----
-
-## Community plugin store (once listed)
+## Community plugin store
 
 1. Open **Settings → Community plugins → Browse**.
-2. Search for **AI Browser Chat** and click **Install**, then **Enable**.
-
----
+2. Search for **OmniChat**.
+3. Click **Install**, then **Enable**.
 
 ## Manual install
 
-1. Go to the [latest release](../../releases/latest) and download `main.js`, `manifest.json`, and `styles.css`.
-2. Create the folder `<vault>/.obsidian/plugins/aibrowser-chat/` and copy the three files into it.
-3. In Obsidian go to **Settings → Community plugins → Installed plugins** and toggle **AI Browser Chat** on.
+1. Open the [latest release](../../releases/latest).
+2. Download `main.js`, `manifest.json`, and `styles.css`.
+3. Create the folder `<vault>/.obsidian/plugins/aibrowser-chat/`.
+4. Copy the three files into that folder.
+5. In Obsidian, go to **Settings → Community plugins → Installed plugins** and enable **OmniChat**.
 
----
-
-## BRAT (beta / pre-release)
+## BRAT
 
 1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) community plugin.
-2. Open BRAT settings → **Add Beta Plugin** → enter this repository's URL.
-3. Enable **AI Browser Chat** in **Settings → Community plugins**.
+2. Open BRAT settings and choose **Add Beta Plugin**.
+3. Paste this repository URL.
+4. Enable **OmniChat** in **Settings → Community plugins**.
 
----
+## Open the panel
 
-## Enabling the sidebar
+After installation, you can open OmniChat in any of these ways:
 
-After installation:
-
-- Click the **chat bubble icon** in the left ribbon, or
-- Run **AI Browser Chat: Open** from the command palette (`Cmd/Ctrl+P`), or
-- Assign a hotkey to **AI Browser Chat: Toggle sidebar** in **Settings → Hotkeys**.
+- Click the ribbon icon.
+- Run **OmniChat: Open** from the command palette.
+- Assign a hotkey to **OmniChat: Toggle sidebar** in **Settings → Hotkeys**.

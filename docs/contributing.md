@@ -1,119 +1,90 @@
 # Contributing
 
-Thank you for your interest in contributing to AI Browser Chat. This document covers the workflow, code expectations, and review process.
-
----
+Thank you for contributing to OmniChat.
 
 ## Before you start
 
-1. **Read [`CLAUDE.md`](../CLAUDE.md)** — the AI contributor guide. It describes the architecture, key design decisions, and patterns to follow. New code must fit this structure.
-2. **Read [`docs/architecture.md`](architecture.md)** — understand the data flow and why the webview is managed imperatively.
-3. **Check open issues and pull requests** to avoid duplicating work.
-
----
+1. Read [AGENTS.md](../AGENTS.md).
+2. Read [docs/architecture.md](architecture.md).
+3. Check open issues and pull requests before starting work.
 
 ## Workflow
 
 ### 1. Fork and branch
 
 ```bash
-# Fork on GitHub, then:
 git clone https://github.com/<your-username>/AI-Browser-Chat.git
 cd AI-Browser-Chat
 git checkout -b feat/your-feature-name
-# or
-git checkout -b fix/short-description
 ```
 
-Branch naming:
-- `feat/<name>` — new functionality
-- `fix/<name>` — bug fix
-- `docs/<name>` — documentation only
-- `refactor/<name>` — internal restructure with no behaviour change
+Recommended prefixes:
 
-### 2. Set up your environment
+- `feat/` for features
+- `fix/` for bug fixes
+- `docs/` for documentation
+- `refactor/` for internal cleanup
+
+### 2. Set up
 
 ```bash
 npm install
-npm run dev        # start watch build
+npm run dev
 ```
-
-See [`docs/development.md`](development.md) for vault linking instructions.
 
 ### 3. Make changes
 
-- Follow the existing code style (tabs, TypeScript strict mode, no `as any`).
-- Do not add features beyond what the issue or PR description asks for.
-- Do not add comments that describe *what* the code does — only add comments for non-obvious *why* (hidden constraints, workarounds, subtle invariants).
-- No `console.log` statements in committed code.
-- If you add a new setting, follow the pattern in [Adding a new setting](architecture.md#adding-a-new-setting).
-- If you add a new AI service, follow the pattern in [Adding a new AI service](architecture.md#adding-a-new-ai-service).
+- Keep TypeScript strict.
+- Do not introduce `as any`.
+- Keep logic in `main.ts`, `settings.ts`, `utils.ts`, `AIChatView.ts`, or modals consistent with the current architecture.
+- Do not add a backend, API keys, or mobile shims.
+- Prefer small, intentional changes over broad refactors.
 
-### 4. Lint, build, and test
+### 4. Verify
 
 ```bash
-npm run lint       # must pass with no errors
-npm run build      # must complete without type errors
-npm test           # all unit tests must pass
+npm run lint
+npm run build
+npm run test
 ```
 
-All three checks run in CI; failing any will block the PR.
+### 5. Manual checks
 
-### 5. Test manually
+- Main panel opens from ribbon and command palette.
+- Toggle command opens and closes the panel.
+- Enabled services appear correctly in the selector.
+- Split panel opens and remembers its own service.
+- Sessions persist across reopen.
+- Active note, open tabs, note search, and folder picker all add context correctly.
+- Prompt templates inject as expected.
+- Context sends into chat or falls back to clipboard with a notice.
+- Selected editor text sends correctly.
+- Save selection and save clipboard create notes in the configured folder.
+- Context truncation notice appears when limits are hit.
+- Settings changes apply immediately.
 
-Test the following before submitting:
+### 6. Open the pull request
 
-- [ ] Panel opens from the ribbon icon and from the command palette.
-- [ ] Toggle sidebar command opens and closes the panel.
-- [ ] Service dropdown switches between all six services correctly.
-- [ ] Sessions persist after closing and reopening the panel.
-- [ ] Active file, open files, note picker, and folder picker all add items correctly.
-- [ ] Duplicate items are not added.
-- [ ] Add injects context into the AI input (or falls back to clipboard with a notice).
-- [ ] Send selected text injects the selection into the active chat input.
-- [ ] Send selection disabled notice appears when the setting is off.
-- [ ] Context truncation notice fires when the limit is exceeded.
-- [ ] Clear all removes all items and closes the list.
-- [ ] Settings changes (enable/disable service, max length, prefix) are reflected immediately.
-- [ ] Plugin unloads cleanly (no errors in console when disabling).
+- Target branch: `main`
+- Use a clear imperative title
+- Describe what changed and how to test it
 
-### 6. Open a pull request
-
-- Base branch: `main`
-- Title: short imperative verb phrase — e.g. "Add Perplexity AI service support"
-- Description: what changed, why, and how to test it manually
-- Reference any related issue with `Closes #<number>`
-
----
-
-## Code style quick reference
+## Code style
 
 | Rule | Detail |
 |---|---|
-| Indentation | Tabs (enforced by `.editorconfig`) |
-| Quotes | Double quotes for strings |
+| Indentation | Tabs |
+| Quotes | Double quotes |
 | Semicolons | Required |
-| Trailing commas | Required in multi-line structures |
-| No `any` | Use proper types or `unknown` |
-| Catch variables | Typed as `unknown`, not `Error` |
-| DOM creation | Inside `useEffect` or event handlers only |
-| State | Props down, callbacks up — no context providers or global stores |
-| Modals | Class-based extending Obsidian's `Modal` or `FuzzySuggestModal` |
-| Comments | Only when the WHY is non-obvious |
+| Trailing commas | Required for multi-line structures |
+| Catch variables | Use `unknown` |
+| DOM creation | Keep it inside allowed lifecycle/event paths |
+| State | No global store or backend sync layer |
 
----
+## Not accepted
 
-## What will not be accepted
-
-- Bundled API keys or hardcoded credentials of any kind.
-- Reading or writing files outside of `app.vault` (use the Obsidian API).
-- Any backend server or external network dependency beyond the AI service URLs.
-- `innerHTML` assignments — use DOM APIs or React.
-- Abstractions not required by the task (premature generalization, unused helpers, etc.).
-- Mobile compatibility shims — this plugin is intentionally desktop-only.
-
----
-
-## Questions
-
-Open a GitHub Discussion for design questions or ideas before investing time in a large PR. For bugs, open an issue with reproduction steps.
+- Bundled credentials or API keys
+- File access outside `app.vault`
+- Backend/server additions
+- `innerHTML` rendering
+- Mobile compatibility shims

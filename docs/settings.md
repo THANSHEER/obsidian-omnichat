@@ -1,63 +1,70 @@
 # Settings Reference
 
-Open **Settings → AI Browser Chat** in Obsidian.
-
----
+Open **Settings → OmniChat** in Obsidian.
 
 ## AI services
 
 | Setting | Default | Description |
 |---|---|---|
-| Enable ChatGPT | On | Show ChatGPT in the service dropdown |
-| Enable Claude | On | Show Claude in the service dropdown |
-| Enable DeepSeek | On | Show DeepSeek in the service dropdown |
-| Enable Perplexity | On | Show Perplexity in the service dropdown |
-| Enable Gemini | On | Show Google Gemini in the service dropdown |
-| Enable Grok | On | Show Grok (xAI) in the service dropdown |
+| Enable ChatGPT | On | Show ChatGPT in the service selector |
+| Enable Claude | On | Show Claude in the service selector |
+| Enable DeepSeek | On | Show DeepSeek in the service selector |
+| Enable Perplexity | On | Show Perplexity in the service selector |
+| Enable Gemini | On | Show Gemini in the service selector |
+| Enable Grok | On | Show Grok in the service selector |
+| Enable Copilot | On | Show Microsoft Copilot in the service selector |
+| Enable Manus AI | On | Show Manus AI in the service selector |
+| Enable Kimi | On | Show Kimi in the service selector |
 
----
-
-## Sidebar
-
-| Setting | Default | Description |
-|---|---|---|
-| Theme | Auto | Force Light or Dark on the plugin chrome, or follow Obsidian's theme |
-| Default service | ChatGPT | Which AI service opens when the sidebar first loads |
-| Open sidebar on startup | On | Restore the sidebar automatically when Obsidian loads |
-
----
-
-## Browser
+## Appearance & behaviour
 
 | Setting | Default | Description |
 |---|---|---|
-| Auto-refresh interval | 60 min | Silently reload the AI page after this many minutes of inactivity. Set to 0 to disable. |
+| Theme | Auto | Follow Obsidian or force light/dark chrome |
+| Default service | ChatGPT | First service used by the main panel |
+| Open on startup | On | Restore the main panel when Obsidian loads |
+| Auto-refresh (minutes) | 60 | Reload the AI page after idle time; `0` disables it |
+| Open split panel | Action button | Open a second panel with its own remembered service |
 
----
-
-## Vault context
+## Context & notes
 
 | Setting | Default | Description |
 |---|---|---|
-| Auto-clear context after send | Off | Remove all context items automatically after clicking **Add** |
-| Context prefix | _(empty)_ | Text prepended to every context send, e.g. a prompt instruction |
-| Max context length | 50,000 chars | Character cap; content beyond this is truncated with a notice |
-| Send selected text to AI | On | Enable the command that injects editor-selected text into the active AI service |
+| Send selected text to AI | On | Enable the command that sends current editor selection |
+| Auto-add active note on open | Off | Add the active note to context when the panel opens |
+| Strip frontmatter | Off | Remove YAML frontmatter before sending notes |
+| Auto-clear context after send | Off | Clear selected context items after **Add** |
+| Context prefix | Empty | Text prepended to every context send |
+| Max context length | 50,000 chars | Hard character cap for context payload |
+| Save folder | `AI Notes` | Folder used by save actions |
 
----
+## Custom services
+
+| Setting | Default | Description |
+|---|---|---|
+| Custom services | Empty list | Add any AI tool by label and URL |
+
+## Prompt templates
+
+| Setting | Default | Description |
+|---|---|---|
+| Prompt templates | 3 starter templates | Reusable prompts available from the toolbar |
 
 ## Commands
 
-These appear in the command palette (`Cmd/Ctrl+P`). All can be assigned hotkeys in **Settings → Hotkeys**.
-
 | Command | Action |
 |---|---|
-| Open | Open or focus the sidebar panel |
-| Toggle sidebar | Open the panel if closed, close it if open |
-| Open ChatGPT | Switch to ChatGPT and open the panel |
-| Open Claude | Switch to Claude and open the panel |
-| Open DeepSeek | Switch to DeepSeek and open the panel |
-| Open Perplexity | Switch to Perplexity and open the panel |
-| Open Gemini | Switch to Gemini and open the panel |
-| Open Grok | Switch to Grok and open the panel |
+| Open | Open or focus the main panel |
+| Toggle sidebar | Open if closed, close if open |
+| Open ChatGPT | Switch to ChatGPT and open |
+| Open Claude | Switch to Claude and open |
+| Open DeepSeek | Switch to DeepSeek and open |
+| Open Perplexity | Switch to Perplexity and open |
+| Open Gemini | Switch to Gemini and open |
+| Open Grok | Switch to Grok and open |
+| Open Copilot | Switch to Copilot and open |
+| Open Manus AI | Switch to Manus AI and open |
+| Open Kimi | Switch to Kimi and open |
+| Open split panel | Open the second panel |
 | Send selected text to AI | Inject the current editor selection into the active chat |
+| Cycle to next AI service | Move to the next enabled built-in service |

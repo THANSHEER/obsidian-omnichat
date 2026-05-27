@@ -1,131 +1,121 @@
-# AGENTS.md — AI Chat Architecture Guide
+# AGENTS.md — OmniChat Architecture Guide
 
-This file is the AI contributor guide. Read it before suggesting changes. It describes the design intent and boundaries so new code fits the existing architecture.
+Read this before changing the plugin. It documents the current design and the boundaries new code should respect.
 
 ## What this plugin does
 
-AI Chat embeds AI chat services (ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok) in an Obsidian sidebar using an Electron `<webview>`. It also provides a vault context feature: the user selects notes or folders, clicks **Add**, and the note content is injected into the AI chat input (or copied to the clipboard if injection is unavailable).
+OmniChat embeds AI chat websites in an Obsidian sidebar using an Electron `<webview>`. It includes built-in support for ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, and Kimi, supports custom AI URLs, can inject selected text and vault context, and can save AI output back into the vault.
 
 ## Tech stack
 
 | Concern | Choice |
 |---|---|
-| Plugin framework | Obsidian Plugin API (`obsidian` npm package) |
-| UI | React 18 (JSX transform, no class components) |
-| Language | TypeScript with strict mode enabled |
-| Build | esbuild (see `esbuild.config.mjs`) |
+| Plugin framework | Obsidian Plugin API |
+| UI | Imperative DOM in `ItemView` |
+| Language | TypeScript with strict mode |
+| Build | esbuild |
 | Linting | ESLint with `typescript-eslint` and `eslint-plugin-obsidianmd` |
 
 ## Repository layout
 
-```
+```text
 src/
-  main.ts                    Plugin entry point. Owns lifecycle, settings load/save,
-                             view registration, ribbon, and command registration.
-                             All other files are imported from here.
+  main.ts                    Plugin entry point. Owns lifecycle, command registration,
+                             settings load/save, and view registration.
 
-  settings.ts                DockSettings interface, DEFAULT_SETTINGS, and
-                             AI ChatSettingTab (Obsidian PluginSettingTab).
-                             Add new persisted options here — never store state
-                             outside of DockSettings. Now includes `contextItems`
-                             for persistent memory.
+  settings.ts                DockSettings, DEFAULT_SETTINGS, and AIChatSettingTab.
+                             Persisted state belongs here.
 
-  constants.ts               URL constants for all six AI services.
+  constants.ts               Built-in AI service URLs.
+
+  utils.ts                   Shared helpers like URL normalization, service detection,
+                             context construction, and frontmatter stripping.
 
   commands/
-    index.ts                 registerCommands() — wires command palette entries
-                             to methods on AI ChatPlugin. Keep thin; logic
-                             stays in main.ts.
+    index.ts                 registerCommands() only. Keep command handlers thin.
 
   views/
-    AI ChatView.tsx       Obsidian ItemView that mounts the React tree.
-                             AI ChatView.renderView() is the single call site
-                             that renders <AI ChatPanel>. Pass new props here
-                             when adding plugin-level state to the React layer.
-
-  components/
-    AI ChatPanel.tsx      Root React component. Owns the <webview> lifecycle
-                             (create, src updates, event listeners, teardown)
-                             and the context injection logic. Now includes a
-                             unified header for service selection and context
-                             management.
+    AIChatView.ts            Main ItemView implementation. Owns the webview lifecycle,
+                             toolbar, service selector, context list, templates,
+                             split-panel behavior, and save actions.
 
   modals/
-    FilePickerModal.ts       FuzzySuggestModal<TFile> — picks a single note.
-    FolderPickerModal.ts     FuzzySuggestModal<TFolder> — picks a folder.
-                             Both are Obsidian class-based; instantiate them
-                             with `new XModal(app, callback).open()`.
+    ContextSearchModal.ts    Search notes by name or content.
+    FolderPickerModal.ts     Pick folders for context.
+    SaveDestinationModal.ts  Save AI output into the vault.
 ```
 
 ## Data flow
 
-```
-User picks a service from the dropdown
-  → onChange fires → switchService(key) → setActiveUrl → webview.src updated
+```text
+User switches service
+  → AIChatView resolves URL
+  → webview.src updates
+  → plugin persists URL for main or split panel
 
-User adds context (Active / + Open / + Note / + Folder buttons)
-  → AI ChatPanel adds to 'items' state
-  → useEffect fires → onContextItemsChange(items) → plugin.setContextItems → saveData
+User adds context
+  → AIChatView updates items
+  → plugin.setContextItems(items)
+  → saveData()
 
-User clicks "Add"
-  → handleSendContext() reads vault content via app.vault.read()
-  → navigator.clipboard.writeText(context)   ← always runs
-  → webview.executeJavaScript(injectScript)  ← best-effort
-  → new Notice(…)
+User clicks Add
+  → handleAddContext() reads notes with app.vault.read()
+  → clipboard write always happens as fallback
+  → webview.executeJavaScript(...) tries best-effort injection
+  → Notice reports the result
+
+User clicks Save
+  → selection or clipboard text is captured
+  → SaveDestinationModal writes a markdown note
 ```
 
 ## Key design decisions
 
-**Webview is created imperatively, not declaratively.** React cannot render Electron's `<webview>` tag reliably; the element is appended to a `div` ref inside a `useEffect` and removed on cleanup. Do not attempt to render `<webview>` inside JSX.
+**Webview is imperative.** Do not try to render Electron `<webview>` declaratively.
 
-**Context injection is best-effort.** `executeJavaScript` may fail if the webview hasn't loaded, the site changed its DOM, or the Electron IPC is not ready. The clipboard copy is always the reliable fallback. Do not assume injection succeeds.
+**Injection is best-effort.** Clipboard fallback is mandatory because third-party chat DOMs can change.
 
-**Context persistence is handled via settings.** Selected files and folders are saved to `DockSettings.contextItems` whenever they change, ensuring "memory" across service switches and Obsidian restarts.
+**Persistence belongs in settings.** Context items, service toggles, templates, custom services, and save-folder preferences should remain in `DockSettings`.
 
-**No global state / no stores.** State flows down via props and up via callbacks. Do not introduce a context provider or state library — the component tree is shallow enough that prop drilling is fine.
+**No backend.** This plugin is local-only and session-based.
 
-**Modals are class-based, not hooks.** Obsidian modals extend `FuzzySuggestModal` or `Modal`. Instantiate them inside event handlers; do not try to render them as React components.
-
-**Desktop-only, no mobile.** `manifest.json` sets `"isDesktopOnly": true`. The `<webview>` Electron API does not exist on mobile. Do not add mobile fallbacks or compatibility shims.
+**Desktop only.** Do not add mobile compatibility shims.
 
 ## Adding a new setting
 
-1. Add the field to `DockSettings` in `settings.ts` with a default in `DEFAULT_SETTINGS`.
-2. Add a `new Setting(containerEl)…` block in `AI ChatSettingTab.display()`.
+1. Add the field to `DockSettings` in `settings.ts`.
+2. Add a default in `DEFAULT_SETTINGS`.
+3. Wire the control in `AIChatSettingTab.display()`.
 
 ## Adding a new command
 
-Add an entry to `registerCommands()` in `commands/index.ts` and a corresponding method on `AI ChatPlugin` in `main.ts`.
+1. Add the command in `src/commands/index.ts`.
+2. Add the handler method in `src/main.ts`.
 
-## Adding a new AI service
+## Adding a new built-in AI service
 
-1. Add a URL constant in `constants.ts`.
-2. Add an entry to `SERVICE_URLS` in `AI ChatPanel.tsx` (the `as const` object).
-3. Add a `getServiceKey` case for the new domain (URL pattern match).
-4. Add an `<option value="newkey">Service Name</option>` inside the `<select>` in `AI ChatPanel.tsx`.
-5. Add a `vc-svc-dot--newkey` rule in `styles.css` with the service's brand colour.
-6. Add `enableNewService` to `DockSettings` and `DEFAULT_SETTINGS` in `settings.ts`, wire the toggle in the settings tab, and pass the prop from `AI ChatView.renderView()`.
-7. Add `openNewService()` in `main.ts` and a command in `commands/index.ts`.
+1. Add the URL constant in `src/constants.ts`.
+2. Extend `SERVICE_URLS`.
+3. Update `getServiceKey()` in `src/utils.ts`.
+4. Add the selector option in `populateServiceOptions()` inside `src/views/AIChatView.ts`.
+5. Add the enable toggle in `src/settings.ts`.
+6. Add the opener method in `src/main.ts`.
+7. Add the command entry in `src/commands/index.ts`.
+8. Add the service color rule in `styles.css`.
 
 ## Build
 
 ```bash
-npm run dev      # esbuild watch
-npm run build    # tsc type-check (no emit) then esbuild production bundle
+npm run dev
+npm run build
 ```
 
-Output: `main.js` in the repo root (next to `manifest.json`).
+Build output is `main.js` in the repo root.
 
-## Lint rules of note
+## Avoid
 
-- `eslint-plugin-obsidianmd` flags patterns that break Obsidian's renderer (e.g. `document.createElement` outside of effects, synchronous vault writes). Follow its guidance.
-- `noImplicitAny` and `strictNullChecks` are on. Do not add `as any` casts.
-- `useUnknownInCatchVariables` is on — type caught errors as `unknown`, not `Error`.
-
-## What to avoid
-
-- Do not add a bundled API key or hardcoded credentials. The plugin uses web sessions only.
-- Do not read or write files outside of `app.vault` — use the Obsidian API.
-- Do not introduce a backend or server. This is a purely local, client-side plugin.
-- Do not render HTML strings directly (`innerHTML`). Use DOM APIs or React.
-- Do not add mobile compatibility shims. This plugin is intentionally desktop-only.
+- Bundled credentials or API keys
+- File access outside `app.vault`
+- Backends or server dependencies
+- `innerHTML`
+- Mobile compatibility layers
