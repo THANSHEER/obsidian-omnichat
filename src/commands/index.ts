@@ -63,6 +63,12 @@ export function registerCommands(plugin: AIChatPlugin): void {
 	});
 
 	plugin.addCommand({
+		id: "open-split-panel",
+		name: "Open split panel",
+		callback: () => void plugin.openSplitPanel(),
+	});
+
+	plugin.addCommand({
 		id: "send-selection",
 		name: "Send selected text to AI",
 		editorCallback: (editor: Editor) => void plugin.sendSelectionToAI(editor.getSelection()),

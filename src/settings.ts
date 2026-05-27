@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import AIChatPlugin from "./main";
 import { CHATGPT_URL, ServiceKey, SERVICE_URLS } from "./constants";
+import { normalizeUrl } from "./utils";
 
 export interface ContextItem {
 	path: string;
@@ -12,6 +13,12 @@ export interface PromptTemplate {
 	id: string;
 	label: string;
 	text: string;
+}
+
+export interface CustomService {
+	id: string;
+	label: string;
+	url: string;
 }
 
 export type ThemeMode = "auto" | "light" | "dark";
@@ -40,6 +47,8 @@ export interface DockSettings {
 	autoContextOnOpen: boolean;
 	stripFrontmatter: boolean;
 	saveNoteFolder: string;
+	customServices: CustomService[];
+	splitPanelUrl: string;
 }
 
 export const DEFAULT_SETTINGS: DockSettings = {
@@ -70,6 +79,8 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	autoContextOnOpen: false,
 	stripFrontmatter: false,
 	saveNoteFolder: "AI Notes",
+	customServices: [],
+	splitPanelUrl: SERVICE_URLS.claude,
 };
 
 export class AIChatSettingTab extends PluginSettingTab {
@@ -352,6 +363,68 @@ export class AIChatSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(containerEl).setName("Split panel").setHeading();
+
+		new Setting(containerEl)
+			.setName("Open split panel")
+			.setDesc("Open a second AI panel alongside the main one — each panel remembers its own service.")
+			.addButton((btn) => {
+				btn.setButtonText("Open split panel").onClick(() => {
+					void this.plugin.openSplitPanel();
+				});
+			});
+
+		new Setting(containerEl).setName("Custom services").setHeading();
+
+		new Setting(containerEl)
+			.setName("Add custom service")
+			.setDesc("Add any AI tool by URL — it will appear in the service dropdown alongside the built-in ones.")
+			.addButton((btn) => {
+				btn.setButtonText("+ add").setCta().onClick(async () => {
+					this.plugin.settings.customServices.push({
+						id: Date.now().toString(),
+						label: "My AI tool",
+						url: "https://",
+					});
+					await this.plugin.saveSettings();
+					this.plugin.rerenderOpenViews();
+					this.display();
+				});
+			});
+
+		for (const svc of this.plugin.settings.customServices) {
+			const row = new Setting(containerEl)
+				.addText((t) =>
+					t
+						.setPlaceholder("Label")
+						.setValue(svc.label)
+						.onChange(async (v) => {
+							svc.label = v;
+							await this.plugin.saveSettings();
+							this.plugin.rerenderOpenViews();
+						}),
+				)
+				.addText((t) => {
+					t.setPlaceholder("Enter URL…").setValue(svc.url).onChange(async (v) => {
+						svc.url = normalizeUrl(v);
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					});
+					t.inputEl.addClass("vc-custom-svc-url");
+					return t;
+				})
+				.addButton((btn) => {
+					btn.setIcon("trash").setWarning().setTooltip("Delete").onClick(async () => {
+						this.plugin.settings.customServices =
+							this.plugin.settings.customServices.filter((s) => s.id !== svc.id);
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+						this.display();
+					});
+				});
+			row.settingEl.addClass("vc-custom-svc-row");
+		}
 
 		new Setting(containerEl).setName("Prompt templates").setHeading();
 

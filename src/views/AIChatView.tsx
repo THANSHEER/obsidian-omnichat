@@ -4,24 +4,27 @@ import { ItemView, WorkspaceLeaf } from "obsidian";
 import AIChatPlugin from "../main";
 import { AIChatPanel } from "../components/AIChatPanel";
 
-export const AI_CHAT_VIEW_TYPE = "aibrowser-chat-view";
+export const AI_CHAT_VIEW_TYPE       = "aibrowser-chat-view";
+export const AI_CHAT_SPLIT_VIEW_TYPE = "aibrowser-chat-split-view";
 
 export class AIChatView extends ItemView {
 	plugin: AIChatPlugin;
 	root: Root | null = null;
 	pendingText: string | null = null;
+	isPrimary: boolean;
 
-	constructor(leaf: WorkspaceLeaf, plugin: AIChatPlugin) {
+	constructor(leaf: WorkspaceLeaf, plugin: AIChatPlugin, isPrimary = true) {
 		super(leaf);
-		this.plugin = plugin;
+		this.plugin    = plugin;
+		this.isPrimary = isPrimary;
 	}
 
 	getViewType(): string {
-		return AI_CHAT_VIEW_TYPE;
+		return this.isPrimary ? AI_CHAT_VIEW_TYPE : AI_CHAT_SPLIT_VIEW_TYPE;
 	}
 
 	getDisplayText(): string {
-		return "AI chat";
+		return this.isPrimary ? "AI Hub" : "AI Hub (2)";
 	}
 
 	getIcon(): string {
@@ -51,10 +54,18 @@ export class AIChatView extends ItemView {
 	renderView(): void {
 		if (!this.root) return;
 
+		const url = this.isPrimary
+			? this.plugin.settings.webAppUrl
+			: this.plugin.settings.splitPanelUrl;
+
+		const onUrlChange = this.isPrimary
+			? (u: string) => { void this.plugin.setWebAppUrl(u); }
+			: (u: string) => { void this.plugin.setSplitPanelUrl(u); };
+
 		this.root.render(
 			<AIChatPanel
 				app={this.plugin.app}
-				webAppUrl={this.plugin.settings.webAppUrl}
+				webAppUrl={url}
 				maxContextLength={this.plugin.settings.maxContextLength}
 				enableChatGPT={this.plugin.settings.enableChatGPT}
 				enableClaude={this.plugin.settings.enableClaude}
@@ -70,7 +81,7 @@ export class AIChatView extends ItemView {
 				contextPrefix={this.plugin.settings.contextPrefix}
 				initialContextItems={this.plugin.settings.contextItems}
 				onContextItemsChange={(items) => { void this.plugin.setContextItems(items); }}
-				onUrlChange={(url) => { void this.plugin.setWebAppUrl(url); }}
+				onUrlChange={onUrlChange}
 				pendingText={this.pendingText}
 				onPendingTextHandled={() => { this.pendingText = null; this.renderView(); }}
 				theme={this.plugin.settings.theme}
@@ -78,6 +89,7 @@ export class AIChatView extends ItemView {
 				autoContextOnOpen={this.plugin.settings.autoContextOnOpen}
 				stripFrontmatter={this.plugin.settings.stripFrontmatter}
 				saveNoteFolder={this.plugin.settings.saveNoteFolder}
+				customServices={this.plugin.settings.customServices}
 			/>,
 		);
 	}

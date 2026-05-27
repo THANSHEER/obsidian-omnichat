@@ -3,7 +3,7 @@ import { registerCommands } from "./commands";
 import { CHATGPT_URL, CLAUDE_URL, DEEPSEEK_URL, PERPLEXITY_URL, GEMINI_URL, GROK_URL, COPILOT_URL, MANUS_URL, KIMI_URL, SERVICE_URLS, ServiceKey } from "./constants";
 import { ContextItem, DEFAULT_SETTINGS, DockSettings, AIChatSettingTab } from "./settings";
 import { getServiceKey } from "./utils";
-import { AI_CHAT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
+import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
 
 export default class AIChatPlugin extends Plugin {
 	settings: DockSettings;
@@ -13,10 +13,15 @@ export default class AIChatPlugin extends Plugin {
 
 		this.registerView(
 			AI_CHAT_VIEW_TYPE,
-			(leaf: WorkspaceLeaf) => new AIChatView(leaf, this),
+			(leaf: WorkspaceLeaf) => new AIChatView(leaf, this, true),
 		);
 
-		this.addRibbonIcon("messages-square", "Open AI chat", () => {
+		this.registerView(
+			AI_CHAT_SPLIT_VIEW_TYPE,
+			(leaf: WorkspaceLeaf) => new AIChatView(leaf, this, false),
+		);
+
+		this.addRibbonIcon("messages-square", "Open AI Hub", () => {
 			void this.toggleView();
 		});
 
@@ -113,8 +118,23 @@ export default class AIChatPlugin extends Plugin {
 		await this.activateView();
 	}
 
+	async openSplitPanel(): Promise<void> {
+		const existingLeaf = this.app.workspace.getLeavesOfType(AI_CHAT_SPLIT_VIEW_TYPE)[0];
+		const leaf = existingLeaf ?? this.app.workspace.getRightLeaf(false);
+		if (!leaf) return;
+		await leaf.setViewState({ type: AI_CHAT_SPLIT_VIEW_TYPE, active: true });
+		void this.app.workspace.revealLeaf(leaf);
+	}
+
+	async setSplitPanelUrl(url: string): Promise<void> {
+		if (this.settings.splitPanelUrl === url) return;
+		this.settings.splitPanelUrl = url;
+		await this.saveSettings();
+		this.rerenderOpenViews();
+	}
+
 	async sendSelectionToAI(text: string): Promise<void> {
-		if (!this.settings.sendSelectionEnabled) { new Notice("Send selected text is disabled — enable it in AI Browser Chat settings."); return; }
+		if (!this.settings.sendSelectionEnabled) { new Notice("Send selected text is disabled — enable it in AI Hub settings."); return; }
 		if (!text.trim()) { new Notice("Select some text first."); return; }
 		await this.activateView();
 		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
@@ -160,10 +180,12 @@ export default class AIChatPlugin extends Plugin {
 	}
 
 	rerenderOpenViews(): void {
-		for (const leaf of this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)) {
-			const view = leaf.view;
-			if (view instanceof AIChatView) {
-				view.renderView();
+		for (const type of [AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE]) {
+			for (const leaf of this.app.workspace.getLeavesOfType(type)) {
+				const view = leaf.view;
+				if (view instanceof AIChatView) {
+					view.renderView();
+				}
 			}
 		}
 	}
