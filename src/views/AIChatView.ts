@@ -662,7 +662,8 @@ export class AIChatView extends ItemView {
 			new Notice("Clipboard is empty. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
 			return;
 		}
-		if (text.startsWith("--- Vault Context ---")) {
+		const isContext = text.includes("--- Vault Context ---") && text.includes("--- End of Context ---");
+		if (isContext) {
 			new Notice("Clipboard has your context notes, not an AI response. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
 			return;
 		}
