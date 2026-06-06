@@ -6,7 +6,7 @@
 [![Desktop Only](https://img.shields.io/badge/Desktop-macOS%20%7C%20Windows%20%7C%20Linux-111827)](https://obsidian.md/)
 [![GitHub stars](https://img.shields.io/github/stars/THANSHEER/AI-Browser-Chat?style=social)](https://github.com/THANSHEER/AI-Browser-Chat)
 
-OmniChat is a desktop-only Obsidian plugin that embeds AI chat websites in a persistent sidebar, lets you send selected text or vault context into the active chat, and save useful responses back into your notes.
+OmniChat is a desktop-only Obsidian plugin that embeds AI chat websites in a persistent sidebar, lets you send selected text or vault context into the active chat, and save responses back into your vault.
 
 <p align="center">
   <img src="assests/images/ai_browser_chat-1.png" alt="OmniChat overview" width="860">
@@ -20,7 +20,7 @@ OmniChat is a desktop-only Obsidian plugin that embeds AI chat websites in a per
 - Build reusable vault context from notes, open tabs, or full folders, then inject it with one click.
 - Use prompt templates for repeated workflows.
 - Open a second split panel so two AI services can stay visible side by side.
-- Save AI output back into your vault from the page selection or clipboard.
+- Save AI responses to your vault: copy text in the AI page (Cmd+C / Ctrl+C), then click **Save**.
 - Keep sessions persistent across Obsidian restarts.
 
 ## Screenshots

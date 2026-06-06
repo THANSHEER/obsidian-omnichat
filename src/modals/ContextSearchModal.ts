@@ -5,25 +5,36 @@ interface SearchResult {
 	snippet: string | null;
 }
 
+interface FileEntry {
+	file: TFile;
+	pathLower: string;
+	content: string;       // original text, kept for snippet slicing
+	contentLower: string;  // lowercased once, reused on every keystroke
+}
+
 export class ContextSearchModal extends SuggestModal<SearchResult> {
 	private onSelect: (file: TFile) => void;
-	private allFiles: TFile[];
-	private contentCache = new Map<string, string>();
+	private entries: FileEntry[];
+	private static readonly MAX_RESULTS = 50;
 
 	constructor(app: App, onSelect: (file: TFile) => void) {
 		super(app);
 		this.onSelect = onSelect;
 		this.setPlaceholder("Search notes by name or content…");
-		this.allFiles = app.vault.getMarkdownFiles().sort((a, b) =>
-			a.basename.localeCompare(b.basename),
-		);
+		// Build the name index synchronously; content is filled in lazily below.
+		this.entries = app.vault.getMarkdownFiles()
+			.sort((a, b) => a.basename.localeCompare(b.basename))
+			.map(file => ({ file, pathLower: file.path.toLowerCase(), content: "", contentLower: "" }));
 		void this.preloadContent();
 	}
 
+	// Name search works immediately; content matches light up as files finish loading.
 	private async preloadContent(): Promise<void> {
-		for (const file of this.allFiles) {
+		for (const entry of this.entries) {
 			try {
-				this.contentCache.set(file.path, await this.app.vault.cachedRead(file));
+				const content      = await this.app.vault.cachedRead(entry.file);
+				entry.content      = content;
+				entry.contentLower = content.toLowerCase();
 			} catch {
 				// skip unreadable files
 			}
@@ -31,35 +42,34 @@ export class ContextSearchModal extends SuggestModal<SearchResult> {
 	}
 
 	getSuggestions(query: string): SearchResult[] {
-		const q = query.toLowerCase().trim();
+		const max = ContextSearchModal.MAX_RESULTS;
+		const q   = query.toLowerCase().trim();
 		if (!q) {
-			return this.allFiles.slice(0, 50).map((file) => ({ file, snippet: null }));
+			return this.entries.slice(0, max).map(e => ({ file: e.file, snippet: null }));
 		}
 
+		const scanContent = q.length >= 2;  // skip the full-text scan for single chars
 		const nameMatches: SearchResult[]    = [];
 		const contentMatches: SearchResult[] = [];
 
-		for (const file of this.allFiles) {
-			const pathLower    = file.path.toLowerCase();
-			const content      = this.contentCache.get(file.path) ?? "";
-			const contentLower = content.toLowerCase();
-
-			if (pathLower.includes(q)) {
-				nameMatches.push({ file, snippet: null });
-				continue;
+		for (const e of this.entries) {
+			if (e.pathLower.includes(q)) {
+				nameMatches.push({ file: e.file, snippet: null });
+			} else if (scanContent) {
+				const idx = e.contentLower.indexOf(q);
+				if (idx !== -1) {
+					const start   = Math.max(0, idx - 40);
+					const end     = Math.min(e.content.length, idx + q.length + 60);
+					const raw     = e.content.slice(start, end).replace(/\n+/g, " ").trim();
+					const snippet = (start > 0 ? "…" : "") + raw + (end < e.content.length ? "…" : "");
+					contentMatches.push({ file: e.file, snippet });
+				}
 			}
-
-			if (contentLower.includes(q)) {
-				const idx     = contentLower.indexOf(q);
-				const start   = Math.max(0, idx - 40);
-				const end     = Math.min(content.length, idx + q.length + 60);
-				const raw     = content.slice(start, end).replace(/\n+/g, " ").trim();
-				const snippet = (start > 0 ? "…" : "") + raw + (end < content.length ? "…" : "");
-				contentMatches.push({ file, snippet });
-			}
+			// Stop once we have enough to fill the list — no need to scan the whole vault.
+			if (nameMatches.length + contentMatches.length >= max) break;
 		}
 
-		return [...nameMatches, ...contentMatches].slice(0, 50);
+		return [...nameMatches, ...contentMatches].slice(0, max);
 	}
 
 	renderSuggestion(result: SearchResult, el: HTMLElement): void {

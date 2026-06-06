@@ -1,4 +1,4 @@
-import { SERVICE_URLS, ServiceKey } from "./constants";
+import { SERVICE_META, SERVICE_URLS, ServiceKey } from "./constants";
 
 export function stripFrontmatterContent(content: string): string {
 	return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trimStart();
@@ -18,15 +18,9 @@ export function getServiceKey(url: string): ServiceKey | null {
 	} catch {
 		return null;
 	}
-	if (hostname === "claude.ai")                                                    return "claude";
-	if (hostname === "chatgpt.com"       || hostname === "chat.openai.com")         return "chatgpt";
-	if (hostname === "chat.deepseek.com")                                            return "deepseek";
-	if (hostname === "www.perplexity.ai" || hostname === "perplexity.ai")           return "perplexity";
-	if (hostname === "gemini.google.com")                                            return "gemini";
-	if (hostname === "grok.com")                                                     return "grok";
-	if (hostname === "copilot.microsoft.com")                                        return "copilot";
-	if (hostname === "manus.im")                                                     return "manus";
-	if (hostname === "kimi.ai")                                                      return "kimi";
+	for (const m of SERVICE_META) {
+		if (m.hosts.some(h => h === hostname)) return m.key;
+	}
 	return null;
 }
 

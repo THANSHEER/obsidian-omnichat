@@ -7,12 +7,8 @@ describe("DEFAULT_SETTINGS", () => {
 		expect(DEFAULT_SETTINGS.webAppUrl).toBe(CHATGPT_URL);
 	});
 
-	it("sets defaultService to 'chatgpt'", () => {
-		expect(DEFAULT_SETTINGS.defaultService).toBe("chatgpt");
-	});
-
-	it("defaultService URL matches webAppUrl", () => {
-		expect(SERVICE_URLS[DEFAULT_SETTINGS.defaultService]).toBe(DEFAULT_SETTINGS.webAppUrl);
+	it("default webAppUrl is one of the built-in service URLs", () => {
+		expect(Object.values(SERVICE_URLS)).toContain(DEFAULT_SETTINGS.webAppUrl);
 	});
 
 	it("enables ChatGPT by default", () => {
@@ -75,10 +71,21 @@ describe("DEFAULT_SETTINGS", () => {
 			"enablePerplexity",
 			"enableGemini",
 			"enableGrok",
+			"enableCopilot",
+			"enableManus",
+			"enableKimi",
 			"autoRefreshMinutes",
-			"defaultService",
 			"autoClearContext",
 			"contextPrefix",
+			"theme",
+			"sendSelectionEnabled",
+			"promptTemplates",
+			"autoContextOnOpen",
+			"stripFrontmatter",
+			"saveNoteFolder",
+			"useDateSubfolder",
+			"customServices",
+			"splitPanelUrl",
 		];
 		for (const key of requiredKeys) {
 			expect(Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)).toBe(true);

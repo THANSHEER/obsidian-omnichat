@@ -86,10 +86,11 @@ The plugin depends on Electron webviews and is intentionally desktop-only.
 
 ## Adding a new built-in AI service
 
-1. Add the URL constant in [src/constants.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/constants.ts).
-2. Extend `SERVICE_URLS`.
-3. Add hostname detection in [src/utils.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/utils.ts).
-4. Add the selector option in [src/views/AIChatView.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/views/AIChatView.ts).
-5. Add the settings toggle in [src/settings.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/settings.ts).
-6. Add the command and `open<Service>()` method in [src/commands/index.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/commands/index.ts) and [src/main.ts](/Users/mohammedthansheer/Documents/Sample Notes/.obsidian/plugins/AI-Browser-Chat/src/main.ts).
-7. Add the service color rule in `styles.css`.
+Built-in services are defined once in `SERVICE_META` in [src/constants.ts](../src/constants.ts).
+The URL map (`SERVICE_URLS`), service selector, status bar, cycle command, per-service
+openers/commands, and host→key detection (`getServiceKey` in [src/utils.ts](../src/utils.ts))
+are all derived from it.
+
+1. Add a row to `SERVICE_META` in [src/constants.ts](../src/constants.ts) — `key`, `label`, `url`, `hosts`, `enableKey`.
+2. Add the `enable<Service>` flag to the `ServiceEnableKey` union in [src/constants.ts](../src/constants.ts) and to `DockSettings` + `DEFAULT_SETTINGS` in [src/settings.ts](../src/settings.ts).
+3. Add the `.vc-svc-dot--<key>` color rule in `styles.css`.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, getServiceKey, firstEnabled, buildContextString } from "../utils";
+import { normalizeUrl, getServiceKey, firstEnabled, buildContextString, stripFrontmatterContent } from "../utils";
 import { SERVICE_URLS } from "../constants";
 
 // ── normalizeUrl ──────────────────────────────────────────────────────────────
@@ -173,5 +173,30 @@ describe("buildContextString", () => {
 		const { text, truncated } = buildContextString(["A".repeat(1000)], 100, "PREFIX");
 		expect(truncated).toBe(true);
 		expect(text.startsWith("PREFIX")).toBe(true);
+	});
+});
+
+// ── stripFrontmatterContent ─────────────────────────────────────────────────────
+
+describe("stripFrontmatterContent", () => {
+	it("removes a leading YAML frontmatter block", () => {
+		expect(stripFrontmatterContent("---\ntitle: Note\ntags: [a]\n---\nBody text")).toBe("Body text");
+	});
+
+	it("returns content unchanged when there is no frontmatter", () => {
+		expect(stripFrontmatterContent("# Heading\n\nSome text")).toBe("# Heading\n\nSome text");
+	});
+
+	it("handles CRLF line endings", () => {
+		expect(stripFrontmatterContent("---\r\ntitle: Note\r\n---\r\nBody")).toBe("Body");
+	});
+
+	it("trims blank lines left after the frontmatter block", () => {
+		expect(stripFrontmatterContent("---\na: b\n---\n\n\nBody")).toBe("Body");
+	});
+
+	it("does not strip a '---' divider that is not at the very start", () => {
+		const input = "Intro paragraph\n\n---\n\nNext section";
+		expect(stripFrontmatterContent(input)).toBe(input);
 	});
 });
