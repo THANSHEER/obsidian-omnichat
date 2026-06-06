@@ -41,7 +41,7 @@ OmniChat enumerates vault file paths in two situations, both triggered by explic
 - **Pick note** — when you open the note search modal to add a note to context, the plugin lists all Markdown files so you can search them by name or content.
 - **Append to existing note** — when you choose to append an AI response to an existing note, the plugin lists all Markdown files so you can pick a target.
 
-File contents are only read when you actively click **Add** to send context to the AI, or when appending a saved response.
+File contents may be read locally to support content search in **Pick note**, when you click **Add** to send context to the AI, or when appending a saved response.
 
 ## Clipboard access
 
