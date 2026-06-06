@@ -48,7 +48,7 @@ File contents may be read locally to support content search in **Pick note**, wh
 OmniChat reads and writes the system clipboard in two situations:
 
 - **Writes to clipboard** — when the plugin cannot inject text directly into the AI page (the AI site's DOM may block this), it automatically copies the text to your clipboard so you can paste with Cmd+V / Ctrl+V. This is the reliable fallback path for the **Add**, **Copy**, and **Send selected text** features.
-- **Reads from clipboard** — only when you explicitly click **Save → Save clipboard**, which reads whatever is currently on your clipboard and saves it as a vault note.
+- **Reads from clipboard** — only when you explicitly click **Save**, which reads whatever is currently on your clipboard and saves it as a vault note.
 
 No clipboard content is ever sent anywhere other than the AI service page you are actively using.
 
