@@ -27,7 +27,7 @@ const SENTENCE_CASE_BRANDS = [
 	"VS Code", "Visual Studio Code", "IntelliJ IDEA", "WebStorm", "PyCharm",
 	// AI services used by this plugin
 	"ChatGPT", "Claude", "DeepSeek", "Perplexity", "Gemini", "Grok",
-	"Google", "xAI", "AI Browser Chat",
+	"Copilot", "Manus AI", "Kimi", "Google", "xAI", "OmniChat",
 ];
 
 export default tseslint.config(

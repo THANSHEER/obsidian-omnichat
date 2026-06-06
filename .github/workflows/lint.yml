@@ -92,10 +92,10 @@ jobs:
                   test -f manifest.json || (echo "manifest.json missing" && exit 1)
                   test -f styles.css    || (echo "styles.css missing"    && exit 1)
 
-    # ── CI Status (The "Quick Fix" Job) ──────────────────────
-    # This job is named 'CI' to match what GitHub is likely expecting
+    # ── CI Status ─────────────────────────────────────────────
+    # Named 'ciExpected' to match the required branch protection check.
     ci:
-        name: CI
+        name: ciExpected
         needs: [build]
         runs-on: ubuntu-latest
         steps:

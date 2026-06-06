@@ -1,4 +1,4 @@
-# OmniChat for Obsidian
+# OmniChat
 
 > Keep ChatGPT, Claude, Gemini, Perplexity, Grok, Copilot, Manus AI, Kimi, DeepSeek, and your own custom AI tools inside one Obsidian sidebar.
 

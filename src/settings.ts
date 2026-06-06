@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import AIChatPlugin from "./main";
 import { CHATGPT_URL, ServiceKey, SERVICE_URLS } from "./constants";
 import { normalizeUrl } from "./utils";
@@ -47,6 +47,7 @@ export interface DockSettings {
 	autoContextOnOpen: boolean;
 	stripFrontmatter: boolean;
 	saveNoteFolder: string;
+	useDateSubfolder: boolean;
 	customServices: CustomService[];
 	splitPanelUrl: string;
 }
@@ -79,6 +80,7 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	autoContextOnOpen: false,
 	stripFrontmatter:  false,
 	saveNoteFolder:    "AI Notes",
+	useDateSubfolder:  false,
 	customServices:    [],
 	splitPanelUrl:     SERVICE_URLS.claude,
 };
@@ -277,6 +279,30 @@ export class AIChatSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.saveNoteFolder)
 					.onChange(async v => {
 						this.plugin.settings.saveNoteFolder = v;
+						await this.plugin.saveSettings();
+					}),
+			)
+			.addButton(btn =>
+				btn.setButtonText("Open folder").setTooltip("Reveal in file explorer").onClick(() => {
+					const folderPath = this.plugin.settings.saveNoteFolder.trim() || "AI Notes";
+					const abstract   = this.app.vault.getAbstractFileByPath(folderPath);
+					if (!abstract) { new Notice(`Folder "${folderPath}" does not exist yet — save a note first.`); return; }
+					const explorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
+					if (explorer) {
+						void this.app.workspace.revealLeaf(explorer);
+						const view = explorer.view as unknown as { revealInFolder?: (f: unknown) => void };
+						view.revealInFolder?.(abstract);
+					}
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName("Organise saves by date")
+			.setDesc("Save into daily subfolders — e.g. AI notes/2026-06-01/response.md.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.useDateSubfolder)
+					.onChange(async v => {
+						this.plugin.settings.useDateSubfolder = v;
 						await this.plugin.saveSettings();
 					}),
 			);
