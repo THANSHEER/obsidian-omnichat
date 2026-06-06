@@ -299,8 +299,7 @@ export class AIChatView extends ItemView {
 	private mountWebview(): void {
 		if (!this.hostEl || this.webview) return;
 
-		// eslint-disable-next-line obsidianmd/prefer-active-doc -- webview must use document.createElement
-		const wv = document.createElement("webview") as EmbeddedWebview;
+		const wv = this.containerEl.doc.createElement("webview") as EmbeddedWebview;
 		wv.className = "ai-chat-browser-webview";
 		wv.setAttribute("partition",      "persist:aibrowser-chat");
 		wv.setAttribute("allowpopups",    "");

@@ -63,19 +63,19 @@ export function registerCommands(plugin: AIChatPlugin): void {
 
 	plugin.addCommand({
 		id: "open-copilot",
-		name: "Open copilot",
+		name: "Open Copilot",
 		callback: () => void plugin.openCopilot(),
 	});
 
 	plugin.addCommand({
 		id: "open-manus",
-		name: "Open manus AI",
+		name: "Open Manus AI",
 		callback: () => void plugin.openManus(),
 	});
 
 	plugin.addCommand({
 		id: "open-kimi",
-		name: "Open kimi",
+		name: "Open Kimi",
 		callback: () => void plugin.openKimi(),
 	});
 

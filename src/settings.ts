@@ -298,7 +298,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Organise saves by date")
-			.setDesc("Save into daily subfolders — e.g. AI Notes/2026-06-01/response.md.")
+			.setDesc("Save into daily subfolders — e.g. AI notes/2026-06-01/response.md.")
 			.addToggle(t =>
 				t.setValue(this.plugin.settings.useDateSubfolder)
 					.onChange(async v => {
