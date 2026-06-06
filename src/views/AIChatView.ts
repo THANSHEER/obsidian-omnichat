@@ -1,6 +1,6 @@
 import { ItemView, Menu, Notice, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import AIChatPlugin from "../main";
-import { SERVICE_URLS, ServiceKey } from "../constants";
+import { SERVICE_META, SERVICE_URLS, ServiceKey } from "../constants";
 import { ContextItem } from "../settings";
 import { ContextSearchModal } from "../modals/ContextSearchModal";
 import { FolderPickerModal } from "../modals/FolderPickerModal";
@@ -24,7 +24,7 @@ type EmbeddedWebview = HTMLElement & {
 export class AIChatView extends ItemView {
 	plugin:    AIChatPlugin;
 	isPrimary: boolean;
-	pendingText: string | null = null;
+	private pendingText: string | null = null;
 
 	// ── Runtime state ─────────────────────────────────────────
 	private activeUrl        = "";
@@ -70,6 +70,8 @@ export class AIChatView extends ItemView {
 		this.items = [...this.plugin.settings.contextItems];
 		this.buildUI();
 		this.startIdleTimer();
+		// Guaranteed cleanup on unload, even if onClose is bypassed (stopIdleTimer is idempotent).
+		this.register(() => this.stopIdleTimer());
 		if (this.plugin.settings.autoContextOnOpen) this.autoAddActiveFile();
 	}
 
@@ -87,6 +89,7 @@ export class AIChatView extends ItemView {
 	}
 
 	renderView(): void {
+		this.refreshContextFromSettings();
 		const s   = this.plugin.settings;
 		const url = normalizeUrl(this.isPrimary ? s.webAppUrl : s.splitPanelUrl);
 
@@ -209,15 +212,7 @@ export class AIChatView extends ItemView {
 			const o = this.svcSelectEl!.createEl("option", { text: label });
 			o.value = val;
 		};
-		if (s.enableChatGPT)    opt("chatgpt",    "ChatGPT");
-		if (s.enableClaude)     opt("claude",     "Claude");
-		if (s.enableDeepSeek)   opt("deepseek",   "DeepSeek");
-		if (s.enablePerplexity) opt("perplexity", "Perplexity");
-		if (s.enableGemini)     opt("gemini",     "Gemini");
-		if (s.enableGrok)       opt("grok",       "Grok");
-		if (s.enableCopilot)    opt("copilot",    "Copilot");
-		if (s.enableManus)      opt("manus",      "Manus AI");
-		if (s.enableKimi)       opt("kimi",       "Kimi");
+		for (const m of SERVICE_META) if (s[m.enableKey]) opt(m.key, m.label);
 		for (const svc of s.customServices) opt(svc.url, svc.label);
 	}
 
@@ -274,15 +269,10 @@ export class AIChatView extends ItemView {
 		this.copyCtxBtnEl.title = "Copy note context to clipboard";
 		this.copyCtxBtnEl.addEventListener("click", () => void this.handleCopyContext());
 
-		const saveBtn = right.createEl("button", { cls: "vc-save-btn", text: "Save ▾" });
-		saveBtn.title = "Save AI response to your vault";
-		saveBtn.setAttribute("aria-label", "Save AI response");
-		saveBtn.addEventListener("click", (e: MouseEvent) => {
-			const menu = new Menu();
-			menu.addItem(i => i.setTitle("Save selection").setIcon("text-select").onClick(() => void this.saveWebviewSelection()));
-			menu.addItem(i => i.setTitle("Save clipboard").setIcon("clipboard").onClick(() => void this.saveFromClipboard()));
-			menu.showAtMouseEvent(e);
-		});
+		const saveBtn = right.createEl("button", { cls: "vc-save-btn", text: "Save" });
+		saveBtn.title = "Copy text in the AI page, then click save to write it to your vault";
+		saveBtn.setAttribute("aria-label", "Save clipboard to vault");
+		saveBtn.addEventListener("click", () => void this.saveFromClipboard());
 
 		this.updateContextCount();
 	}
@@ -310,12 +300,19 @@ export class AIChatView extends ItemView {
 		wv.addEventListener("dom-ready", () => {
 			this.webviewReady = true;
 			this.setLoading(false);
+			this.fallbackEl?.hide();
 			this.lastInteractedAt = Date.now();
 			if (this.pendingText) void this.flushPendingText();
 		});
 		wv.addEventListener("did-start-loading",    () => this.setLoading(true));
 		wv.addEventListener("did-stop-loading",     () => { this.setLoading(false); this.lastInteractedAt = Date.now(); });
-		wv.addEventListener("did-fail-load",        () => { this.setLoading(false); this.fallbackEl?.show(); });
+		wv.addEventListener("did-fail-load",        (e: Event) => {
+			const ev = e as Event & { errorCode?: number; isMainFrame?: boolean };
+			if (ev.errorCode === -3) return;       // load aborted (redirect/cancel) — not a real failure
+			if (ev.isMainFrame === false) return;  // sub-frame / sub-resource failure — ignore
+			this.setLoading(false);
+			this.fallbackEl?.show();
+		});
 		wv.addEventListener("did-navigate",         () => { this.lastInteractedAt = Date.now(); });
 		wv.addEventListener("did-navigate-in-page", () => { this.lastInteractedAt = Date.now(); });
 
@@ -446,11 +443,26 @@ export class AIChatView extends ItemView {
 
 	// ── Context actions ───────────────────────────────────────
 
+	// Context items live in plugin settings (the single source of truth). Persist
+	// a mutation, then broadcast so any other open panel re-syncs from settings.
+	private syncItems(): void {
+		void this.plugin.setContextItems([...this.items]);
+		this.plugin.rerenderOpenViews();
+	}
+
+	// Re-read context items from settings and refresh the count/list. Called at the
+	// top of renderView() so a change made in one panel shows up in the other.
+	private refreshContextFromSettings(): void {
+		this.items = [...this.plugin.settings.contextItems];
+		this.updateContextCount();
+		if (this.showContextList) this.renderContextList();
+	}
+
 	private autoAddActiveFile(): void {
 		const f = this.app.workspace.getActiveFile();
 		if (f && !this.items.some(i => i.path === f.path)) {
 			this.items.push({ path: f.path, type: "file", displayName: f.basename });
-			this.updateContextCount();
+			this.syncItems();
 		}
 	}
 
@@ -460,7 +472,7 @@ export class AIChatView extends ItemView {
 		if (this.items.some(i => i.path === f.path)) { new Notice("Already in context."); return; }
 		this.items.push({ path: f.path, type: "file", displayName: f.basename });
 		this.openContextList();
-		void this.plugin.setContextItems(this.items);
+		this.syncItems();
 	}
 
 	// Feature 5: called from file-explorer context menu via main.ts
@@ -468,7 +480,7 @@ export class AIChatView extends ItemView {
 		if (this.items.some(i => i.path === file.path)) { new Notice(`"${file.basename}" is already in context.`); return; }
 		this.items.push({ path: file.path, type: "file", displayName: file.basename });
 		this.openContextList();
-		void this.plugin.setContextItems(this.items);
+		this.syncItems();
 		new Notice(`Added "${file.basename}" to OmniChat context.`);
 	}
 
@@ -488,7 +500,7 @@ export class AIChatView extends ItemView {
 		if (added > 0) {
 			new Notice(`Added ${added} file${added !== 1 ? "s" : ""} to context.`);
 			this.openContextList();
-			void this.plugin.setContextItems(this.items);
+			this.syncItems();
 		} else {
 			new Notice("All open files already in context.");
 		}
@@ -499,7 +511,7 @@ export class AIChatView extends ItemView {
 			if (this.items.some(i => i.path === f.path)) return;
 			this.items.push({ path: f.path, type: "file", displayName: f.basename });
 			this.openContextList();
-			void this.plugin.setContextItems(this.items);
+			this.syncItems();
 		}).open();
 	}
 
@@ -509,7 +521,7 @@ export class AIChatView extends ItemView {
 			const displayName = folder.isRoot() ? "Vault root" : folder.name;
 			this.items.push({ path: folder.path, type: "folder", displayName });
 			this.openContextList();
-			void this.plugin.setContextItems(this.items);
+			this.syncItems();
 		}).open();
 	}
 
@@ -518,7 +530,7 @@ export class AIChatView extends ItemView {
 		if (!this.items.length) this.showContextList = false;
 		this.updateContextCount();
 		this.renderContextList();
-		void this.plugin.setContextItems(this.items);
+		this.syncItems();
 	}
 
 	private clearAll(): void {
@@ -529,7 +541,7 @@ export class AIChatView extends ItemView {
 		this.contextListEl?.remove();
 		this.contextListEl = null;
 		this.updateContextCount();
-		void this.plugin.setContextItems(this.items);
+		this.syncItems();
 	}
 
 	private openContextList(): void {
@@ -557,8 +569,12 @@ export class AIChatView extends ItemView {
 		if (!text.trim()) { new Notice("This template is empty — edit it in settings."); return; }
 		const resolved = this.resolveTemplateVariables(text);
 		if (!await this.injectIntoWebview(resolved)) {
-			await navigator.clipboard.writeText(resolved);
-			new Notice("Template copied — paste with Cmd+V / Ctrl+V.");
+			try {
+				await navigator.clipboard.writeText(resolved);
+				new Notice("Template copied — paste with Cmd+V / Ctrl+V.");
+			} catch {
+				new Notice("Couldn't insert or copy the template.");
+			}
 		}
 	}
 
@@ -606,6 +622,9 @@ export class AIChatView extends ItemView {
 				new Notice("Context copied — paste with Cmd+V / Ctrl+V.");
 			}
 			if (s.autoClearContext) this.clearAll();
+		} catch (err) {
+			console.error("OmniChat: failed to add context", err);
+			new Notice("Couldn't read one or more notes — see console for details.");
 		} finally {
 			this.isAdding = false;
 			this.updateContextCount();
@@ -615,29 +634,39 @@ export class AIChatView extends ItemView {
 	// Feature 3: copy context string to clipboard without injecting
 	private async handleCopyContext(): Promise<void> {
 		if (!this.items.length) { new Notice("Add some notes to context first."); return; }
-		const s     = this.plugin.settings;
-		const parts = await this.readContextParts();
-		if (!parts.length) { new Notice("No readable notes found."); return; }
-		const { text, truncated } = buildContextString(parts, s.maxContextLength, s.contextPrefix);
-		if (truncated) new Notice("Context truncated — limit reached.");
-		await navigator.clipboard.writeText(text);
-		new Notice("Context copied to clipboard.");
+		try {
+			const s     = this.plugin.settings;
+			const parts = await this.readContextParts();
+			if (!parts.length) { new Notice("No readable notes found."); return; }
+			const { text, truncated } = buildContextString(parts, s.maxContextLength, s.contextPrefix);
+			if (truncated) new Notice("Context truncated — limit reached.");
+			await navigator.clipboard.writeText(text);
+			new Notice("Context copied to clipboard.");
+		} catch (err) {
+			console.error("OmniChat: failed to copy context", err);
+			new Notice("Couldn't copy context — see console for details.");
+		}
 	}
 
 	// ── Save actions ──────────────────────────────────────────
 
 	private async saveFromClipboard(): Promise<void> {
-		const text = await navigator.clipboard.readText();
-		if (!text.trim()) { new Notice("Clipboard is empty — copy an AI response first."); return; }
-		new SaveDestinationModal(this.app, text, this.plugin.settings.saveNoteFolder, this.plugin.settings.useDateSubfolder).open();
-	}
-
-	private async saveWebviewSelection(): Promise<void> {
-		if (!this.webview?.executeJavaScript) { new Notice("Cannot access page content."); return; }
 		let text: string;
-		try { text = await this.webview.executeJavaScript("window.getSelection()?.toString() ?? ''") as string; }
-		catch { new Notice("Could not read selection from page."); return; }
-		if (!text.trim()) { new Notice("Select some text in the AI response first."); return; }
+		try {
+			text = await navigator.clipboard.readText();
+		} catch {
+			new Notice("Could not read clipboard. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
+			return;
+		}
+		if (!text.trim()) {
+			new Notice("Clipboard is empty. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
+			return;
+		}
+		const isContext = text.includes("--- Vault Context ---") && text.includes("--- End of Context ---");
+		if (isContext) {
+			new Notice("Clipboard has your context notes, not an AI response. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
+			return;
+		}
 		new SaveDestinationModal(this.app, text, this.plugin.settings.saveNoteFolder, this.plugin.settings.useDateSubfolder).open();
 	}
 
@@ -691,8 +720,12 @@ export class AIChatView extends ItemView {
 		if (await this.injectIntoWebview(text)) {
 			new Notice("Selection sent to AI.");
 		} else {
-			await navigator.clipboard.writeText(text);
-			new Notice("Selection copied — paste with Cmd+V / Ctrl+V.");
+			try {
+				await navigator.clipboard.writeText(text);
+				new Notice("Selection copied — paste with Cmd+V / Ctrl+V.");
+			} catch {
+				new Notice("Couldn't send or copy the selection.");
+			}
 		}
 	}
 
@@ -743,17 +776,9 @@ export class AIChatView extends ItemView {
 	// ── Helpers ───────────────────────────────────────────────
 
 	private getEnabledFlags(): Record<ServiceKey, boolean> {
-		const s = this.plugin.settings;
-		return {
-			chatgpt:    s.enableChatGPT,
-			claude:     s.enableClaude,
-			deepseek:   s.enableDeepSeek,
-			perplexity: s.enablePerplexity,
-			gemini:     s.enableGemini,
-			grok:       s.enableGrok,
-			copilot:    s.enableCopilot,
-			manus:      s.enableManus,
-			kimi:       s.enableKimi,
-		};
+		const s     = this.plugin.settings;
+		const flags = {} as Record<ServiceKey, boolean>;
+		for (const m of SERVICE_META) flags[m.key] = s[m.enableKey];
+		return flags;
 	}
 }

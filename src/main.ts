@@ -1,6 +1,6 @@
 import { Editor, Menu, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { registerCommands } from "./commands";
-import { CHATGPT_URL, CLAUDE_URL, DEEPSEEK_URL, PERPLEXITY_URL, GEMINI_URL, GROK_URL, COPILOT_URL, MANUS_URL, KIMI_URL, SERVICE_URLS, ServiceKey } from "./constants";
+import { SERVICE_META, SERVICE_URLS, ServiceKey } from "./constants";
 import { ContextItem, DEFAULT_SETTINGS, DockSettings, AIChatSettingTab } from "./settings";
 import { getServiceKey } from "./utils";
 import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
@@ -90,48 +90,8 @@ export default class AIChatPlugin extends Plugin {
 		await this.activateView();
 	}
 
-	async openChatGpt(): Promise<void> {
-		await this.setWebAppUrl(CHATGPT_URL);
-		await this.activateView();
-	}
-
-	async openClaude(): Promise<void> {
-		await this.setWebAppUrl(CLAUDE_URL);
-		await this.activateView();
-	}
-
-	async openDeepSeek(): Promise<void> {
-		await this.setWebAppUrl(DEEPSEEK_URL);
-		await this.activateView();
-	}
-
-	async openPerplexity(): Promise<void> {
-		await this.setWebAppUrl(PERPLEXITY_URL);
-		await this.activateView();
-	}
-
-	async openGemini(): Promise<void> {
-		await this.setWebAppUrl(GEMINI_URL);
-		await this.activateView();
-	}
-
-	async openGrok(): Promise<void> {
-		await this.setWebAppUrl(GROK_URL);
-		await this.activateView();
-	}
-
-	async openCopilot(): Promise<void> {
-		await this.setWebAppUrl(COPILOT_URL);
-		await this.activateView();
-	}
-
-	async openManus(): Promise<void> {
-		await this.setWebAppUrl(MANUS_URL);
-		await this.activateView();
-	}
-
-	async openKimi(): Promise<void> {
-		await this.setWebAppUrl(KIMI_URL);
+	async openService(key: ServiceKey): Promise<void> {
+		await this.setWebAppUrl(SERVICE_URLS[key]);
 		await this.activateView();
 	}
 
@@ -169,27 +129,15 @@ export default class AIChatPlugin extends Plugin {
 	}
 
 	async cycleService(): Promise<void> {
-		const enableMap: Record<ServiceKey, keyof DockSettings> = {
-			chatgpt:    "enableChatGPT",
-			claude:     "enableClaude",
-			deepseek:   "enableDeepSeek",
-			perplexity: "enablePerplexity",
-			gemini:     "enableGemini",
-			grok:       "enableGrok",
-			copilot:    "enableCopilot",
-			manus:      "enableManus",
-			kimi:       "enableKimi",
-		};
-		const keys = Object.keys(SERVICE_URLS) as ServiceKey[];
-		const enabled = keys.filter((k) => this.settings[enableMap[k]] as boolean);
+		const enabled = SERVICE_META.filter(m => this.settings[m.enableKey]);
 		if (enabled.length === 0) return;
 		const current = getServiceKey(this.settings.webAppUrl);
-		const idx = current ? enabled.indexOf(current) : -1;
-		const nextKey = enabled[(idx + 1) % enabled.length];
-		if (!nextKey) return;
-		await this.setWebAppUrl(SERVICE_URLS[nextKey]);
+		const idx     = enabled.findIndex(m => m.key === current);
+		const next    = enabled[(idx + 1) % enabled.length];
+		if (!next) return;
+		await this.setWebAppUrl(next.url);
 		await this.activateView();
-		new Notice(`Switched to ${nextKey.charAt(0).toUpperCase() + nextKey.slice(1)}`);
+		new Notice(`Switched to ${next.label}`);
 	}
 
 	async setContextItems(items: ContextItem[]): Promise<void> {
@@ -199,14 +147,9 @@ export default class AIChatPlugin extends Plugin {
 
 	// Feature 4
 	updateStatusBar(): void {
-		const key    = getServiceKey(this.settings.webAppUrl);
-		const labels: Record<string, string> = {
-			chatgpt: "ChatGPT", claude: "Claude", deepseek: "DeepSeek",
-			perplexity: "Perplexity", gemini: "Gemini", grok: "Grok",
-			copilot: "Copilot", manus: "Manus AI", kimi: "Kimi",
-		};
-		const name = key ? (labels[key] ?? key) : "OmniChat";
-		this.statusBarEl.setText(`◈ ${name}`);
+		const key  = getServiceKey(this.settings.webAppUrl);
+		const meta = SERVICE_META.find(m => m.key === key);
+		this.statusBarEl.setText(`◈ ${meta?.label ?? "OmniChat"}`);
 	}
 
 	// Feature 5 helper
@@ -253,11 +196,19 @@ export default class AIChatPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			await this.loadData() as Partial<DockSettings>,
-		);
+		const loaded = ((await this.loadData()) ?? {}) as Partial<DockSettings>;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+
+		// Migration: drop the removed `defaultService` field. Its value only ever
+		// mirrored webAppUrl, which remains the single source of truth.
+		delete (this.settings as Partial<DockSettings> & { defaultService?: unknown }).defaultService;
+
+		// Defensive normalization for hand-edited or partially-corrupt data.json.
+		if (!Array.isArray(this.settings.contextItems))    this.settings.contextItems    = [];
+		if (!Array.isArray(this.settings.customServices))  this.settings.customServices  = [];
+		if (!Array.isArray(this.settings.promptTemplates)) this.settings.promptTemplates = [...DEFAULT_SETTINGS.promptTemplates];
+		if (!(this.settings.maxContextLength > 0))         this.settings.maxContextLength   = DEFAULT_SETTINGS.maxContextLength;
+		if (!(this.settings.autoRefreshMinutes >= 0))      this.settings.autoRefreshMinutes = DEFAULT_SETTINGS.autoRefreshMinutes;
 	}
 
 	async saveSettings(): Promise<void> {

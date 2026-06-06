@@ -10,7 +10,9 @@ import {
 	MANUS_URL,
 	KIMI_URL,
 	SERVICE_URLS,
+	SERVICE_META,
 } from "../constants";
+import { DEFAULT_SETTINGS } from "../settings";
 
 describe("SERVICE_URLS", () => {
 	it("has exactly nine service entries", () => {
@@ -91,5 +93,35 @@ describe("individual URL constants", () => {
 		const urls = Object.values(urlMap);
 		const unique = new Set(urls);
 		expect(unique.size).toBe(urls.length);
+	});
+});
+
+describe("SERVICE_META (registry)", () => {
+	it("has one entry per SERVICE_URLS key", () => {
+		expect(SERVICE_META.length).toBe(Object.keys(SERVICE_URLS).length);
+	});
+
+	it("has unique keys", () => {
+		const keys = SERVICE_META.map(m => m.key);
+		expect(new Set(keys).size).toBe(keys.length);
+	});
+
+	it("every entry's url is registered in SERVICE_URLS under its key", () => {
+		for (const m of SERVICE_META) {
+			expect(SERVICE_URLS[m.key]).toBe(m.url);
+		}
+	});
+
+	it("every entry has at least one host and a non-empty label", () => {
+		for (const m of SERVICE_META) {
+			expect(m.hosts.length).toBeGreaterThan(0);
+			expect(m.label.length).toBeGreaterThan(0);
+		}
+	});
+
+	it("every enableKey is a boolean field in DEFAULT_SETTINGS", () => {
+		for (const m of SERVICE_META) {
+			expect(typeof DEFAULT_SETTINGS[m.enableKey]).toBe("boolean");
+		}
 	});
 });

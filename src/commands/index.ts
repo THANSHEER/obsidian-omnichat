@@ -1,5 +1,6 @@
 import { App, Editor, FuzzySuggestModal, Notice } from "obsidian";
 import AIChatPlugin from "../main";
+import { SERVICE_META } from "../constants";
 import { PromptTemplate } from "../settings";
 
 class TemplatePickerModal extends FuzzySuggestModal<PromptTemplate> {
@@ -25,59 +26,16 @@ export function registerCommands(plugin: AIChatPlugin): void {
 		callback: () => void plugin.openAIChat(),
 	});
 
-	plugin.addCommand({
-		id: "open-chatgpt",
-		name: "Open ChatGPT",
-		callback: () => void plugin.openChatGpt(),
-	});
-
-	plugin.addCommand({
-		id: "open-claude",
-		name: "Open Claude",
-		callback: () => void plugin.openClaude(),
-	});
-
-	plugin.addCommand({
-		id: "open-deepseek",
-		name: "Open DeepSeek",
-		callback: () => void plugin.openDeepSeek(),
-	});
-
-	plugin.addCommand({
-		id: "open-perplexity",
-		name: "Open Perplexity",
-		callback: () => void plugin.openPerplexity(),
-	});
-
-	plugin.addCommand({
-		id: "open-gemini",
-		name: "Open Gemini",
-		callback: () => void plugin.openGemini(),
-	});
-
-	plugin.addCommand({
-		id: "open-grok",
-		name: "Open Grok",
-		callback: () => void plugin.openGrok(),
-	});
-
-	plugin.addCommand({
-		id: "open-copilot",
-		name: "Open Copilot",
-		callback: () => void plugin.openCopilot(),
-	});
-
-	plugin.addCommand({
-		id: "open-manus",
-		name: "Open Manus AI",
-		callback: () => void plugin.openManus(),
-	});
-
-	plugin.addCommand({
-		id: "open-kimi",
-		name: "Open Kimi",
-		callback: () => void plugin.openKimi(),
-	});
+	// One "Open <Service>" command per built-in service, derived from the registry.
+	// IDs (open-<key>) and names match the previous hand-written commands, so any
+	// user-bound hotkeys are preserved.
+	for (const svc of SERVICE_META) {
+		plugin.addCommand({
+			id: `open-${svc.key}`,
+			name: `Open ${svc.label}`,
+			callback: () => void plugin.openService(svc.key),
+		});
+	}
 
 	plugin.addCommand({
 		id: "open-split-panel",

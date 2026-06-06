@@ -1,7 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import AIChatPlugin from "./main";
-import { CHATGPT_URL, ServiceKey, SERVICE_URLS } from "./constants";
-import { normalizeUrl } from "./utils";
+import { CHATGPT_URL, SERVICE_META, ServiceKey, SERVICE_URLS } from "./constants";
+import { getServiceKey, normalizeUrl } from "./utils";
 
 export interface ContextItem {
 	path: string;
@@ -38,7 +38,6 @@ export interface DockSettings {
 	enableManus: boolean;
 	enableKimi: boolean;
 	autoRefreshMinutes: number;
-	defaultService: ServiceKey;
 	autoClearContext: boolean;
 	contextPrefix: string;
 	theme: ThemeMode;
@@ -67,7 +66,6 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	enableManus:         true,
 	enableKimi:          true,
 	autoRefreshMinutes:  60,
-	defaultService:      "chatgpt",
 	autoClearContext:    false,
 	contextPrefix:       "",
 	theme:               "auto",
@@ -100,26 +98,14 @@ export class AIChatSettingTab extends PluginSettingTab {
 		// ── AI Services ───────────────────────────────────────
 		new Setting(containerEl).setName("AI services").setHeading();
 
-		const services: { key: keyof DockSettings; label: string }[] = [
-			{ key: "enableChatGPT",    label: "ChatGPT" },
-			{ key: "enableClaude",     label: "Claude" },
-			{ key: "enableDeepSeek",   label: "DeepSeek" },
-			{ key: "enablePerplexity", label: "Perplexity" },
-			{ key: "enableGemini",     label: "Gemini" },
-			{ key: "enableGrok",       label: "Grok" },
-			{ key: "enableCopilot",    label: "Copilot" },
-			{ key: "enableManus",      label: "Manus AI" },
-			{ key: "enableKimi",       label: "Kimi" },
-		];
-
-		for (const svc of services) {
+		for (const svc of SERVICE_META) {
 			new Setting(containerEl)
 				.setName(svc.label)
 				.setDesc("Show in the service selector.")
 				.addToggle(t =>
-					t.setValue(this.plugin.settings[svc.key] as boolean)
+					t.setValue(this.plugin.settings[svc.enableKey])
 						.onChange(async v => {
-							(this.plugin.settings[svc.key] as boolean) = v;
+							this.plugin.settings[svc.enableKey] = v;
 							await this.plugin.saveSettings();
 							this.plugin.rerenderOpenViews();
 						}),
@@ -148,16 +134,12 @@ export class AIChatSettingTab extends PluginSettingTab {
 			.setName("Default service")
 			.setDesc("Which AI opens when the portal first loads.")
 			.addDropdown(d => {
-				for (const [key, label] of Object.entries({
-					chatgpt: "ChatGPT", claude: "Claude", deepseek: "DeepSeek",
-					perplexity: "Perplexity", gemini: "Gemini", grok: "Grok",
-					copilot: "Copilot", manus: "Manus AI", kimi: "Kimi",
-				})) d.addOption(key, label);
-				d.setValue(this.plugin.settings.defaultService)
+				for (const m of SERVICE_META) d.addOption(m.key, m.label);
+				d.setValue(getServiceKey(this.plugin.settings.webAppUrl) ?? SERVICE_META[0].key)
 					.onChange(async v => {
-						this.plugin.settings.defaultService = v as ServiceKey;
 						this.plugin.settings.webAppUrl = SERVICE_URLS[v as ServiceKey];
 						await this.plugin.saveSettings();
+						this.plugin.updateStatusBar();
 						this.plugin.rerenderOpenViews();
 					});
 			});
