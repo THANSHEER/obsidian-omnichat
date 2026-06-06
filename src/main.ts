@@ -1,4 +1,4 @@
-import { Editor, Menu, Notice, Plugin, WorkspaceLeaf } from "obsidian";
+import { Editor, Menu, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { registerCommands } from "./commands";
 import { CHATGPT_URL, CLAUDE_URL, DEEPSEEK_URL, PERPLEXITY_URL, GEMINI_URL, GROK_URL, COPILOT_URL, MANUS_URL, KIMI_URL, SERVICE_URLS, ServiceKey } from "./constants";
 import { ContextItem, DEFAULT_SETTINGS, DockSettings, AIChatSettingTab } from "./settings";
@@ -7,6 +7,7 @@ import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/
 
 export default class AIChatPlugin extends Plugin {
 	settings: DockSettings;
+	private statusBarEl!: HTMLElement;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -21,12 +22,28 @@ export default class AIChatPlugin extends Plugin {
 			(leaf: WorkspaceLeaf) => new AIChatView(leaf, this, false),
 		);
 
-		this.addRibbonIcon("messages-square", "Open AI portal", () => {
+		this.addRibbonIcon("messages-square", "Open OmniChat", () => {
 			void this.toggleView();
 		});
 
 		registerCommands(this);
 		this.addSettingTab(new AIChatSettingTab(this.app, this));
+
+		// Feature 4: status bar shows active service
+		this.statusBarEl = this.addStatusBarItem();
+		this.updateStatusBar();
+
+		// Feature 5: file-explorer context menu → add to OmniChat context
+		this.registerEvent(
+			this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
+				if (!(file instanceof TFile)) return;
+				menu.addItem(item => {
+					item.setTitle("Add to OmniChat context")
+						.setIcon("messages-square")
+						.onClick(() => void this.addFileToContext(file));
+				});
+			}),
+		);
 
 		this.registerEvent(
 			this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor) => {
@@ -134,7 +151,7 @@ export default class AIChatPlugin extends Plugin {
 	}
 
 	async sendSelectionToAI(text: string): Promise<void> {
-		if (!this.settings.sendSelectionEnabled) { new Notice("Send selected text is disabled — enable it in AI portal settings."); return; }
+		if (!this.settings.sendSelectionEnabled) { new Notice("Send selected text is disabled — enable it in OmniChat settings."); return; }
 		if (!text.trim()) { new Notice("Select some text first."); return; }
 		await this.activateView();
 		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
@@ -147,6 +164,7 @@ export default class AIChatPlugin extends Plugin {
 		if (this.settings.webAppUrl === url) return;
 		this.settings.webAppUrl = url;
 		await this.saveSettings();
+		this.updateStatusBar();
 		this.rerenderOpenViews();
 	}
 
@@ -177,6 +195,50 @@ export default class AIChatPlugin extends Plugin {
 	async setContextItems(items: ContextItem[]): Promise<void> {
 		this.settings.contextItems = items;
 		await this.saveSettings();
+	}
+
+	// Feature 4
+	updateStatusBar(): void {
+		const key    = getServiceKey(this.settings.webAppUrl);
+		const labels: Record<string, string> = {
+			chatgpt: "ChatGPT", claude: "Claude", deepseek: "DeepSeek",
+			perplexity: "Perplexity", gemini: "Gemini", grok: "Grok",
+			copilot: "Copilot", manus: "Manus AI", kimi: "Kimi",
+		};
+		const name = key ? (labels[key] ?? key) : "OmniChat";
+		this.statusBarEl.setText(`◈ ${name}`);
+	}
+
+	// Feature 5 helper
+	async addFileToContext(file: TFile): Promise<void> {
+		if (!this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE).length) await this.activateView();
+		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
+		if (!leaf) return;
+		const view = leaf.view;
+		if (view instanceof AIChatView) view.addFileFromExternal(file);
+	}
+
+	// Feature 6
+	async addActiveNoteToContext(): Promise<void> {
+		if (!this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE).length) await this.activateView();
+		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
+		if (!leaf) return;
+		const view = leaf.view;
+		if (view instanceof AIChatView) view.addActiveFile();
+	}
+
+	// Feature 9
+	async sendSelectionWithTemplate(selection: string, templateText: string): Promise<void> {
+		if (!this.settings.sendSelectionEnabled) {
+			new Notice("Send selected text is disabled — enable it in OmniChat settings.");
+			return;
+		}
+		const combined = templateText.trim() ? `${templateText}\n\n${selection}` : selection;
+		await this.activateView();
+		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
+		if (!leaf) return;
+		const view = leaf.view;
+		if (view instanceof AIChatView) view.injectText(combined);
 	}
 
 	rerenderOpenViews(): void {

@@ -29,7 +29,6 @@ export class AIChatView extends ItemView {
 	// ── Runtime state ─────────────────────────────────────────
 	private activeUrl        = "";
 	private items: ContextItem[] = [];
-	private isLoading        = true;
 	private isAdding         = false;
 	private showContextList  = false;
 
@@ -41,10 +40,11 @@ export class AIChatView extends ItemView {
 	private svcDotEl:     HTMLElement      | null = null;
 	private svcSelectEl:  HTMLSelectElement | null = null;
 	private pipEl:        HTMLElement      | null = null;
-	private reloadBtnEl:  HTMLButtonElement | null = null;
-	private ctxCountEl:   HTMLButtonElement | null = null;
-	private addBtnEl:     HTMLButtonElement | null = null;
-	private contextListEl: HTMLElement     | null = null;
+	private reloadBtnEl:   HTMLButtonElement | null = null;
+	private ctxCountEl:    HTMLButtonElement | null = null;
+	private addBtnEl:      HTMLButtonElement | null = null;
+	private copyCtxBtnEl:  HTMLButtonElement | null = null;
+	private contextListEl: HTMLElement      | null = null;
 
 	// ── Webview ───────────────────────────────────────────────
 	private webview:          EmbeddedWebview | null = null;
@@ -270,6 +270,10 @@ export class AIChatView extends ItemView {
 		this.addBtnEl.title = "Paste note content into chat";
 		this.addBtnEl.addEventListener("click", () => void this.handleAddContext());
 
+		this.copyCtxBtnEl = right.createEl("button", { cls: "vc-copy-ctx-btn", text: "Copy" });
+		this.copyCtxBtnEl.title = "Copy note context to clipboard";
+		this.copyCtxBtnEl.addEventListener("click", () => void this.handleCopyContext());
+
 		const saveBtn = right.createEl("button", { cls: "vc-save-btn", text: "Save ▾" });
 		saveBtn.title = "Save AI response to your vault";
 		saveBtn.setAttribute("aria-label", "Save AI response");
@@ -287,7 +291,7 @@ export class AIChatView extends ItemView {
 		this.appEl = null; this.headerEl = null; this.hostEl = null;
 		this.fallbackEl = null; this.svcDotEl = null; this.svcSelectEl = null;
 		this.pipEl = null; this.reloadBtnEl = null;
-		this.ctxCountEl = null; this.addBtnEl = null; this.contextListEl = null;
+		this.ctxCountEl = null; this.addBtnEl = null; this.copyCtxBtnEl = null; this.contextListEl = null;
 	}
 
 	// ── Webview ───────────────────────────────────────────────
@@ -350,7 +354,6 @@ export class AIChatView extends ItemView {
 	// ── Targeted DOM updates ──────────────────────────────────
 
 	private setLoading(on: boolean): void {
-		this.isLoading = on;
 		if (on) { this.pipEl?.show(); this.reloadBtnEl?.hide(); this.fallbackEl?.hide(); }
 		else    { this.pipEl?.hide(); this.reloadBtnEl?.show(); }
 	}
@@ -366,8 +369,27 @@ export class AIChatView extends ItemView {
 	private updateContextCount(): void {
 		const n   = this.items.length;
 		const has = n > 0;
+
+		// Feature 2: estimate size from cached file stats (no async needed)
+		let charHint = "";
+		if (has) {
+			let totalBytes = 0;
+			for (const item of this.items) {
+				if (item.type === "file") {
+					const node = this.app.vault.getAbstractFileByPath(item.path);
+					if (node instanceof TFile) totalBytes += node.stat.size;
+				}
+			}
+			if (totalBytes > 0) {
+				const display = totalBytes >= 1000
+					? `~${(totalBytes / 1000).toFixed(1)}k`
+					: `${totalBytes}`;
+				charHint = ` · ${display} chars`;
+			}
+		}
+
 		if (this.ctxCountEl) {
-			this.ctxCountEl.setText(has ? `${n} ${n === 1 ? "item" : "items"} ▾` : "–");
+			this.ctxCountEl.setText(has ? `${n} ${n === 1 ? "item" : "items"}${charHint} ▾` : "–");
 			this.ctxCountEl.title = has ? `${n} item${n !== 1 ? "s" : ""} — click to view` : "No items in context";
 			if (has) this.ctxCountEl.addClass("has-items");
 			else     this.ctxCountEl.removeClass("has-items");
@@ -378,6 +400,11 @@ export class AIChatView extends ItemView {
 			this.addBtnEl.setText(this.isAdding ? "…" : "Add");
 			if (has) this.addBtnEl.addClass("is-ready");
 			else     this.addBtnEl.removeClass("is-ready");
+		}
+		if (this.copyCtxBtnEl) {
+			this.copyCtxBtnEl.disabled = !has;
+			if (has) this.copyCtxBtnEl.addClass("is-ready");
+			else     this.copyCtxBtnEl.removeClass("is-ready");
 		}
 	}
 
@@ -428,13 +455,22 @@ export class AIChatView extends ItemView {
 		}
 	}
 
-	private addActiveFile(): void {
+	addActiveFile(): void {
 		const f = this.app.workspace.getActiveFile();
 		if (!f) { new Notice("No active file."); return; }
 		if (this.items.some(i => i.path === f.path)) { new Notice("Already in context."); return; }
 		this.items.push({ path: f.path, type: "file", displayName: f.basename });
 		this.openContextList();
 		void this.plugin.setContextItems(this.items);
+	}
+
+	// Feature 5: called from file-explorer context menu via main.ts
+	addFileFromExternal(file: TFile): void {
+		if (this.items.some(i => i.path === file.path)) { new Notice(`"${file.basename}" is already in context.`); return; }
+		this.items.push({ path: file.path, type: "file", displayName: file.basename });
+		this.openContextList();
+		void this.plugin.setContextItems(this.items);
+		new Notice(`Added "${file.basename}" to OmniChat context.`);
 	}
 
 	private addAllOpenFiles(): void {
@@ -505,12 +541,53 @@ export class AIChatView extends ItemView {
 		this.renderContextList();
 	}
 
+	// Feature 1: resolve {{title}}, {{date}}, {{selection}} in template text
+	private resolveTemplateVariables(text: string): string {
+		const file      = this.app.workspace.getActiveFile();
+		const title     = file?.basename ?? "";
+		const date      = new Date().toISOString().split("T")[0] ?? "";
+		const editor    = this.app.workspace.activeEditor?.editor;
+		const selection = editor?.getSelection() ?? "";
+		return text
+			.replace(/\{\{title\}\}/g,     title)
+			.replace(/\{\{date\}\}/g,      date)
+			.replace(/\{\{selection\}\}/g, selection);
+	}
+
 	private async applyTemplate(text: string): Promise<void> {
 		if (!text.trim()) { new Notice("This template is empty — edit it in settings."); return; }
-		if (!await this.injectIntoWebview(text)) {
-			await navigator.clipboard.writeText(text);
+		const resolved = this.resolveTemplateVariables(text);
+		if (!await this.injectIntoWebview(resolved)) {
+			await navigator.clipboard.writeText(resolved);
 			new Notice("Template copied — paste with Cmd+V / Ctrl+V.");
 		}
+	}
+
+	// Shared: read all context items into formatted string parts
+	private async readContextParts(): Promise<string[]> {
+		const s     = this.plugin.settings;
+		const parts: string[] = [];
+		for (const item of this.items) {
+			const node = this.app.vault.getAbstractFileByPath(item.path);
+			if (item.type === "file" && node instanceof TFile) {
+				const raw = await this.app.vault.read(node);
+				parts.push(`## Note: ${node.basename}\n\n${s.stripFrontmatter ? stripFrontmatterContent(raw) : raw}`);
+			} else if (item.type === "folder" && node instanceof TFolder) {
+				const files: TFile[] = [];
+				const walk = (f: TFolder): void => {
+					for (const c of f.children) {
+						if (c instanceof TFile && c.extension === "md") files.push(c);
+						else if (c instanceof TFolder) walk(c);
+					}
+				};
+				walk(node);
+				for (const file of files) {
+					const raw = await this.app.vault.read(file);
+					parts.push(`## Note: ${file.basename}\n\n${s.stripFrontmatter ? stripFrontmatterContent(raw) : raw}`);
+				}
+			}
+		}
+		return parts;
 	}
 
 	private async handleAddContext(): Promise<void> {
@@ -519,27 +596,7 @@ export class AIChatView extends ItemView {
 		this.isAdding = true;
 		this.updateContextCount();
 		try {
-			const parts: string[] = [];
-			for (const item of this.items) {
-				const node = this.app.vault.getAbstractFileByPath(item.path);
-				if (item.type === "file" && node instanceof TFile) {
-					const raw = await this.app.vault.read(node);
-					parts.push(`## Note: ${node.basename}\n\n${s.stripFrontmatter ? stripFrontmatterContent(raw) : raw}`);
-				} else if (item.type === "folder" && node instanceof TFolder) {
-					const files: TFile[] = [];
-					const walk = (f: TFolder): void => {
-						for (const c of f.children) {
-							if (c instanceof TFile && c.extension === "md") files.push(c);
-							else if (c instanceof TFolder) walk(c);
-						}
-					};
-					walk(node);
-					for (const file of files) {
-						const raw = await this.app.vault.read(file);
-						parts.push(`## Note: ${file.basename}\n\n${s.stripFrontmatter ? stripFrontmatterContent(raw) : raw}`);
-					}
-				}
-			}
+			const parts = await this.readContextParts();
 			if (!parts.length) { new Notice("No readable notes found."); return; }
 			const { text, truncated } = buildContextString(parts, s.maxContextLength, s.contextPrefix);
 			if (truncated) new Notice("Context truncated — limit reached.");
@@ -556,12 +613,24 @@ export class AIChatView extends ItemView {
 		}
 	}
 
+	// Feature 3: copy context string to clipboard without injecting
+	private async handleCopyContext(): Promise<void> {
+		if (!this.items.length) { new Notice("Add some notes to context first."); return; }
+		const s     = this.plugin.settings;
+		const parts = await this.readContextParts();
+		if (!parts.length) { new Notice("No readable notes found."); return; }
+		const { text, truncated } = buildContextString(parts, s.maxContextLength, s.contextPrefix);
+		if (truncated) new Notice("Context truncated — limit reached.");
+		await navigator.clipboard.writeText(text);
+		new Notice("Context copied to clipboard.");
+	}
+
 	// ── Save actions ──────────────────────────────────────────
 
 	private async saveFromClipboard(): Promise<void> {
 		const text = await navigator.clipboard.readText();
 		if (!text.trim()) { new Notice("Clipboard is empty — copy an AI response first."); return; }
-		new SaveDestinationModal(this.app, text, this.plugin.settings.saveNoteFolder).open();
+		new SaveDestinationModal(this.app, text, this.plugin.settings.saveNoteFolder, this.plugin.settings.useDateSubfolder).open();
 	}
 
 	private async saveWebviewSelection(): Promise<void> {
@@ -570,7 +639,7 @@ export class AIChatView extends ItemView {
 		try { text = await this.webview.executeJavaScript("window.getSelection()?.toString() ?? ''") as string; }
 		catch { new Notice("Could not read selection from page."); return; }
 		if (!text.trim()) { new Notice("Select some text in the AI response first."); return; }
-		new SaveDestinationModal(this.app, text, this.plugin.settings.saveNoteFolder).open();
+		new SaveDestinationModal(this.app, text, this.plugin.settings.saveNoteFolder, this.plugin.settings.useDateSubfolder).open();
 	}
 
 	// ── Navigation ────────────────────────────────────────────

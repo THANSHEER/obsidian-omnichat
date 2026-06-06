@@ -4,11 +4,13 @@ import { FilePickerModal } from "./FilePickerModal";
 export class SaveDestinationModal extends Modal {
 	private text: string;
 	private saveNoteFolder: string;
+	private useDateSubfolder: boolean;
 
-	constructor(app: App, text: string, saveNoteFolder: string) {
+	constructor(app: App, text: string, saveNoteFolder: string, useDateSubfolder = false) {
 		super(app);
-		this.text = text;
-		this.saveNoteFolder = saveNoteFolder;
+		this.text             = text;
+		this.saveNoteFolder   = saveNoteFolder;
+		this.useDateSubfolder = useDateSubfolder;
 	}
 
 	onOpen(): void {
@@ -32,13 +34,15 @@ export class SaveDestinationModal extends Modal {
 
 	private async saveAsNewNote(): Promise<void> {
 		this.close();
-		const folder = this.saveNoteFolder.trim() || "AI Notes";
+		const baseFolder = this.saveNoteFolder.trim() || "AI Notes";
+		const now        = new Date();
+		const pad        = (n: number): string => String(n).padStart(2, "0");
+		const dateStr    = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+		const folder     = this.useDateSubfolder ? `${baseFolder}/${dateStr}` : baseFolder;
 		if (!this.app.vault.getAbstractFileByPath(folder)) {
 			await this.app.vault.createFolder(folder);
 		}
-		const now = new Date();
-		const pad = (n: number): string => String(n).padStart(2, "0");
-		const name = `AI Response ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+		const name = `AI Response ${dateStr} ${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 		const path = `${folder}/${name}.md`;
 		const file = await this.app.vault.create(path, this.text);
 		new Notice(`Saved to ${file.path}`);
