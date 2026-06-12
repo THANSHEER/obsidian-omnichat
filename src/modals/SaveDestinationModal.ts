@@ -43,7 +43,8 @@ export class SaveDestinationModal extends Modal {
 			if (!this.app.vault.getAbstractFileByPath(folder)) {
 				await this.app.vault.createFolder(folder);
 			}
-			const name = `AI Response ${dateStr} ${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+			const ms3  = String(now.getMilliseconds()).padStart(3, "0");
+			const name = `AI Response ${dateStr} ${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}-${ms3}`;
 			const path = `${folder}/${name}.md`;
 			const file = await this.app.vault.create(path, this.text);
 			new Notice(`Saved to ${file.path}`);
@@ -57,21 +58,21 @@ export class SaveDestinationModal extends Modal {
 
 	private appendToExisting(): void {
 		this.close();
-		new FilePickerModal(this.app, (file: TFile) => {
-			void (async () => {
-				try {
-					const existing = await this.app.vault.read(file);
-					const separator = existing.trim() ? "\n\n---\n\n" : "";
-					await this.app.vault.modify(file, existing + separator + this.text);
-					new Notice(`Appended to ${file.path}`);
-					const leaf = this.app.workspace.getLeaf(false);
-					if (leaf) await leaf.openFile(file);
-				} catch (err) {
-					console.error("OmniChat: failed to append to note", err);
-					new Notice("Couldn't append to the note — see console for details.");
-				}
-			})();
-		}).open();
+		new FilePickerModal(this.app, (file: TFile) => void this.appendToFile(file)).open();
+	}
+
+	private async appendToFile(file: TFile): Promise<void> {
+		try {
+			const existing  = await this.app.vault.read(file);
+			const separator = existing.trim() ? "\n\n---\n\n" : "";
+			await this.app.vault.modify(file, existing + separator + this.text);
+			new Notice(`Appended to ${file.path}`);
+			const leaf = this.app.workspace.getLeaf(false);
+			if (leaf) await leaf.openFile(file);
+		} catch (err) {
+			console.error("OmniChat: failed to append to note", err);
+			new Notice("Couldn't append to the note — see console for details.");
+		}
 	}
 
 	onClose(): void {

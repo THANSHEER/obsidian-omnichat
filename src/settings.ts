@@ -145,6 +145,19 @@ export class AIChatSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			.setName("Default split panel service")
+			.setDesc("Which AI opens in the split panel by default.")
+			.addDropdown(d => {
+				for (const m of SERVICE_META) d.addOption(m.key, m.label);
+				d.setValue(getServiceKey(this.plugin.settings.splitPanelUrl) ?? SERVICE_META[0].key)
+					.onChange(async v => {
+						this.plugin.settings.splitPanelUrl = SERVICE_URLS[v as ServiceKey];
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					});
+			});
+
+		new Setting(containerEl)
 			.setName("Open on startup")
 			.setDesc("Restore the portal when Obsidian loads.")
 			.addToggle(t =>
@@ -312,7 +325,14 @@ export class AIChatSettingTab extends PluginSettingTab {
 				)
 				.addText(t => {
 					t.setPlaceholder("Enter URL…").setValue(svc.url)
-						.onChange(async v => { svc.url = normalizeUrl(v); await this.plugin.saveSettings(); this.plugin.rerenderOpenViews(); });
+						.onChange(async v => {
+							const normalized = normalizeUrl(v);
+							const duplicate  = this.plugin.settings.customServices.some(s => s.id !== svc.id && s.url === normalized);
+							if (duplicate) { new Notice("A custom service with this URL already exists."); return; }
+							svc.url = normalized;
+							await this.plugin.saveSettings();
+							this.plugin.rerenderOpenViews();
+						});
 					t.inputEl.addClass("vc-custom-svc-url");
 					return t;
 				})

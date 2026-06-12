@@ -61,14 +61,18 @@ export function registerCommands(plugin: AIChatPlugin): void {
 		callback: () => void plugin.cycleService(),
 	});
 
-	// Feature 6: add active note to context from command palette
 	plugin.addCommand({
 		id: "add-active-note-to-context",
 		name: "Add active note to context",
 		callback: () => void plugin.addActiveNoteToContext(),
 	});
 
-	// Feature 9: send editor selection prepended with a chosen prompt template
+	plugin.addCommand({
+		id: "clear-all-context",
+		name: "Clear all context",
+		callback: () => void plugin.clearAllContext(),
+	});
+
 	plugin.addCommand({
 		id: "send-selection-with-template",
 		name: "Send selection with template",

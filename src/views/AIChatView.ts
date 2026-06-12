@@ -1,4 +1,4 @@
-import { ItemView, Menu, Notice, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { App, ItemView, Menu, Modal, Notice, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import AIChatPlugin from "../main";
 import { SERVICE_META, SERVICE_URLS, ServiceKey } from "../constants";
 import { ContextItem } from "../settings";
@@ -15,6 +15,24 @@ import {
 
 export const AI_CHAT_VIEW_TYPE       = "aibrowser-chat-view";
 export const AI_CHAT_SPLIT_VIEW_TYPE = "aibrowser-chat-split-view";
+
+class ConfirmModal extends Modal {
+	constructor(
+		app: App,
+		private readonly message: string,
+		private readonly onConfirm: () => void,
+	) { super(app); }
+
+	onOpen(): void {
+		this.contentEl.createEl("p", { text: this.message });
+		const btns = this.contentEl.createDiv({ cls: "modal-button-container" });
+		btns.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+		const ok = btns.createEl("button", { text: "Clear all", cls: "mod-warning" });
+		ok.addEventListener("click", () => { this.close(); this.onConfirm(); });
+	}
+
+	onClose(): void { this.contentEl.empty(); }
+}
 
 type EmbeddedWebview = HTMLElement & {
 	src: string;
@@ -294,7 +312,6 @@ export class AIChatView extends ItemView {
 		wv.setAttribute("partition",      "persist:aibrowser-chat");
 		wv.setAttribute("allowpopups",    "");
 		wv.setAttribute("webpreferences", "contextIsolation=yes");
-		wv.setAttribute("useragent",      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
 		wv.src = this.activeUrl;
 
 		wv.addEventListener("dom-ready", () => {
@@ -366,7 +383,6 @@ export class AIChatView extends ItemView {
 		const n   = this.items.length;
 		const has = n > 0;
 
-		// Feature 2: estimate size from cached file stats (no async needed)
 		let charHint = "";
 		if (has) {
 			let totalBytes = 0;
@@ -380,7 +396,7 @@ export class AIChatView extends ItemView {
 				const display = totalBytes >= 1000
 					? `~${(totalBytes / 1000).toFixed(1)}k`
 					: `${totalBytes}`;
-				charHint = ` · ${display} chars`;
+				charHint = ` · ${display} bytes`;
 			}
 		}
 
@@ -436,7 +452,7 @@ export class AIChatView extends ItemView {
 
 		const footer = list.createDiv({ cls: "vc-ctx-list-footer" });
 		footer.createEl("button", { cls: "vc-ctx-clear-btn", text: "Clear all" })
-			.addEventListener("click", () => this.clearAll());
+			.addEventListener("click", () => this.confirmClearAll());
 
 		this.contextListEl = list;
 	}
@@ -475,7 +491,6 @@ export class AIChatView extends ItemView {
 		this.syncItems();
 	}
 
-	// Feature 5: called from file-explorer context menu via main.ts
 	addFileFromExternal(file: TFile): void {
 		if (this.items.some(i => i.path === file.path)) { new Notice(`"${file.basename}" is already in context.`); return; }
 		this.items.push({ path: file.path, type: "file", displayName: file.basename });
@@ -533,6 +548,15 @@ export class AIChatView extends ItemView {
 		this.syncItems();
 	}
 
+	private confirmClearAll(): void {
+		if (!this.items.length) return;
+		new ConfirmModal(
+			this.app,
+			`Remove all ${this.items.length} item${this.items.length !== 1 ? "s" : ""} from context?`,
+			() => this.clearAll(),
+		).open();
+	}
+
 	private clearAll(): void {
 		this.items          = [];
 		this.showContextList = false;
@@ -552,17 +576,28 @@ export class AIChatView extends ItemView {
 		this.renderContextList();
 	}
 
-	// Feature 1: resolve {{title}}, {{date}}, {{selection}} in template text
 	private resolveTemplateVariables(text: string): string {
 		const file      = this.app.workspace.getActiveFile();
 		const title     = file?.basename ?? "";
 		const date      = new Date().toISOString().split("T")[0] ?? "";
 		const editor    = this.app.workspace.activeEditor?.editor;
 		const selection = editor?.getSelection() ?? "";
+		const filePath  = file?.path ?? "";
+		const cache     = file ? this.app.metadataCache.getFileCache(file) : null;
+		const inlineTags = (cache?.tags ?? []).map(t => t.tag);
+		const fmTagsRaw  = cache?.frontmatter?.["tags"] as unknown;
+		const fmTags: string[] = Array.isArray(fmTagsRaw)
+			? (fmTagsRaw as unknown[]).map(t => { const s = String(t); return s.startsWith("#") ? s : `#${s}`; })
+			: typeof fmTagsRaw === "string"
+				? [fmTagsRaw.startsWith("#") ? fmTagsRaw : `#${fmTagsRaw}`]
+				: [];
+		const tags = [...new Set([...inlineTags, ...fmTags])].join(", ");
 		return text
 			.replace(/\{\{title\}\}/g,     title)
 			.replace(/\{\{date\}\}/g,      date)
-			.replace(/\{\{selection\}\}/g, selection);
+			.replace(/\{\{selection\}\}/g, selection)
+			.replace(/\{\{path\}\}/g,      filePath)
+			.replace(/\{\{tags\}\}/g,      tags);
 	}
 
 	private async applyTemplate(text: string): Promise<void> {
@@ -631,7 +666,6 @@ export class AIChatView extends ItemView {
 		}
 	}
 
-	// Feature 3: copy context string to clipboard without injecting
 	private async handleCopyContext(): Promise<void> {
 		if (!this.items.length) { new Notice("Add some notes to context first."); return; }
 		try {

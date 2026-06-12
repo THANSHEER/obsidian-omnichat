@@ -29,11 +29,9 @@ export default class AIChatPlugin extends Plugin {
 		registerCommands(this);
 		this.addSettingTab(new AIChatSettingTab(this.app, this));
 
-		// Feature 4: status bar shows active service
 		this.statusBarEl = this.addStatusBarItem();
 		this.updateStatusBar();
 
-		// Feature 5: file-explorer context menu → add to OmniChat context
 		this.registerEvent(
 			this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
 				if (!(file instanceof TFile)) return;
@@ -64,8 +62,6 @@ export default class AIChatPlugin extends Plugin {
 			});
 		}
 	}
-
-	onunload(): void {}
 
 	async activateView(): Promise<void> {
 		const existingLeaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
@@ -130,7 +126,7 @@ export default class AIChatPlugin extends Plugin {
 
 	async cycleService(): Promise<void> {
 		const enabled = SERVICE_META.filter(m => this.settings[m.enableKey]);
-		if (enabled.length === 0) return;
+		if (enabled.length === 0) { new Notice("No AI services enabled — enable one in OmniChat settings."); return; }
 		const current = getServiceKey(this.settings.webAppUrl);
 		const idx     = enabled.findIndex(m => m.key === current);
 		const next    = enabled[(idx + 1) % enabled.length];
@@ -145,14 +141,17 @@ export default class AIChatPlugin extends Plugin {
 		await this.saveSettings();
 	}
 
-	// Feature 4
+	async clearAllContext(): Promise<void> {
+		await this.setContextItems([]);
+		this.rerenderOpenViews();
+	}
+
 	updateStatusBar(): void {
 		const key  = getServiceKey(this.settings.webAppUrl);
 		const meta = SERVICE_META.find(m => m.key === key);
 		this.statusBarEl.setText(`◈ ${meta?.label ?? "OmniChat"}`);
 	}
 
-	// Feature 5 helper
 	async addFileToContext(file: TFile): Promise<void> {
 		if (!this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE).length) await this.activateView();
 		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
@@ -161,7 +160,6 @@ export default class AIChatPlugin extends Plugin {
 		if (view instanceof AIChatView) view.addFileFromExternal(file);
 	}
 
-	// Feature 6
 	async addActiveNoteToContext(): Promise<void> {
 		if (!this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE).length) await this.activateView();
 		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
@@ -170,7 +168,6 @@ export default class AIChatPlugin extends Plugin {
 		if (view instanceof AIChatView) view.addActiveFile();
 	}
 
-	// Feature 9
 	async sendSelectionWithTemplate(selection: string, templateText: string): Promise<void> {
 		if (!this.settings.sendSelectionEnabled) {
 			new Notice("Send selected text is disabled — enable it in OmniChat settings.");
