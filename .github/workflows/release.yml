@@ -18,8 +18,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  # Full history is required so generate_release_notes
-                  # can compare against the previous tag correctly.
+                  # Full history so generate_release_notes can compare against the previous tag.
                   fetch-depth: 0
 
             - uses: actions/setup-node@v4
@@ -33,26 +32,13 @@ jobs:
             - name: Build
               run: npm run build
 
-            - name: Verify release artifacts
-              run: |
-                  test -f main.js       || (echo "main.js missing"       && exit 1)
-                  test -f manifest.json || (echo "manifest.json missing" && exit 1)
-                  test -f styles.css    || (echo "styles.css missing"    && exit 1)
-
-            - name: Attest main.js
+            - name: Attest artifacts
               uses: actions/attest-build-provenance@v2
               with:
-                  subject-path: main.js
-
-            - name: Attest manifest.json
-              uses: actions/attest-build-provenance@v2
-              with:
-                  subject-path: manifest.json
-
-            - name: Attest styles.css
-              uses: actions/attest-build-provenance@v2
-              with:
-                  subject-path: styles.css
+                  subject-path: |
+                      main.js
+                      manifest.json
+                      styles.css
 
             - name: Create GitHub release
               uses: softprops/action-gh-release@v2

@@ -1,18 +1,15 @@
 name: CodeQL
 
 on:
-    push:
-        branches: [main]
     pull_request:
         branches: [main]
     schedule:
-        # Runs every Monday at 08:00 UTC — catches new vulnerabilities
-        # in existing code even without a push
+        # Every Monday at 08:00 UTC — catches new vulnerabilities in existing code.
         - cron: "0 8 * * 1"
 
 jobs:
     analyze:
-        name: Analyze (${{ matrix.language }})
+        name: CodeQL analysis
         runs-on: ubuntu-latest
         permissions:
             security-events: write
@@ -20,18 +17,13 @@ jobs:
             actions: read
             contents: read
 
-        strategy:
-            fail-fast: false
-            matrix:
-                language: [javascript-typescript]
-
         steps:
             - uses: actions/checkout@v4
 
             - name: Initialize CodeQL
               uses: github/codeql-action/init@v3
               with:
-                  languages: ${{ matrix.language }}
+                  languages: javascript-typescript
                   queries: security-and-quality
 
             - uses: actions/setup-node@v4
@@ -48,4 +40,4 @@ jobs:
             - name: Perform CodeQL analysis
               uses: github/codeql-action/analyze@v3
               with:
-                  category: "/language:${{ matrix.language }}"
+                  category: "/language:javascript-typescript"

@@ -23,6 +23,8 @@ export class ContextSearchModal extends SuggestModal<SearchResult> {
 		this.onSelect = onSelect;
 		this.setPlaceholder("Search notes by name or content…");
 		// Build the name index only — file content is loaded lazily on first content search.
+		// Vault enumeration is intentional: the user explicitly opens this modal
+		// to search their own notes by name or content and pick one for context.
 		this.entries = app.vault.getMarkdownFiles()
 			.sort((a, b) => a.basename.localeCompare(b.basename))
 			.map(file => ({ file, pathLower: file.path.toLowerCase(), content: "", contentLower: "" }));
