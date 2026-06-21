@@ -57,7 +57,7 @@ export class SaveDestinationModal extends Modal {
 	}
 
 	private buildFrontmatter(now: Date): string {
-		const escape = (v: string): string => `"${v.replace(/"/g, '\\"')}"`;
+		const escape = (v: string): string => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 		return `---\nsource: ${escape(this.sourceService ?? "Unknown")}\nsaved: ${escape(now.toISOString())}\n---\n\n`;
 	}
 
