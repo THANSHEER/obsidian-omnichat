@@ -7,15 +7,13 @@ on:
         branches: [main]
 
 # Cancel any in-progress run for the same branch when a new push arrives.
-# Keeps the queue clean and saves CI minutes.
 concurrency:
     group: ci-${{ github.ref }}
     cancel-in-progress: true
 
 jobs:
-    # ── Lint ──────────────────────────────────────────────────
-    lint:
-        name: Lint
+    ci:
+        name: ciExpected
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -31,57 +29,11 @@ jobs:
             - name: Lint
               run: npm run lint
 
-    # ── Type-check ────────────────────────────────────────────
-    typecheck:
-        name: Type-check
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: npm
-
-            - name: Install dependencies
-              run: npm ci
-
             - name: Type-check
               run: npx tsc --noEmit --skipLibCheck
 
-    # ── Unit tests ────────────────────────────────────────────
-    test:
-        name: Unit tests
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: npm
-
-            - name: Install dependencies
-              run: npm ci
-
-            - name: Run tests
+            - name: Unit tests
               run: npm test
-
-    # ── Build (runs only when all three above pass) ───────────
-    build:
-        name: Build
-        needs: [lint, typecheck, test]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-                  cache: npm
-
-            - name: Install dependencies
-              run: npm ci
 
             - name: Build
               run: npm run build
@@ -91,13 +43,3 @@ jobs:
                   test -f main.js       || (echo "main.js missing"       && exit 1)
                   test -f manifest.json || (echo "manifest.json missing" && exit 1)
                   test -f styles.css    || (echo "styles.css missing"    && exit 1)
-
-    # ── CI Status ─────────────────────────────────────────────
-    # Named 'ciExpected' to match the required branch protection check.
-    ci:
-        name: ciExpected
-        needs: [build]
-        runs-on: ubuntu-latest
-        steps:
-            - name: Done
-              run: echo "All checks passed!"
