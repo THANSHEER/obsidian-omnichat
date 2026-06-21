@@ -10,6 +10,8 @@ export class FilePickerModal extends FuzzySuggestModal<TFile> {
 	}
 
 	getItems(): TFile[] {
+		// Vault enumeration is intentional: this picker exists solely to let the
+		// user choose which of their own notes to add as AI context.
 		return this.app.vault.getMarkdownFiles();
 	}
 

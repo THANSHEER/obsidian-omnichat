@@ -354,8 +354,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 					return t;
 				})
 				.addButton(btn =>
-					// eslint-disable-next-line @typescript-eslint/no-deprecated
-					btn.setIcon("trash").setWarning().setTooltip("Remove").onClick(async () => {
+					btn.setIcon("trash").setDestructive().setTooltip("Remove").onClick(async () => {
 						this.plugin.settings.customServices = this.plugin.settings.customServices.filter(s => s.id !== svc.id);
 						await this.plugin.saveSettings();
 						this.plugin.rerenderOpenViews();

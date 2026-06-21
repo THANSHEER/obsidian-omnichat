@@ -628,6 +628,8 @@ export class AIChatView extends ItemView {
 		const resolved = this.resolveTemplateVariables(text);
 		if (!await this.injectIntoWebview(resolved)) {
 			try {
+				// Clipboard write is a user-initiated fallback: direct injection failed,
+				// so the resolved template text (no external data) is copied on their behalf.
 				await navigator.clipboard.writeText(resolved);
 				new Notice("Template copied — paste with Cmd+V / Ctrl+V.");
 			} catch {
@@ -676,6 +678,8 @@ export class AIChatView extends ItemView {
 			if (await this.injectIntoWebview(text)) {
 				new Notice("Context pasted in chat.");
 			} else {
+				// Clipboard write is a user-initiated fallback: direct injection failed,
+				// so the user's own note content is copied on their behalf.
 				await navigator.clipboard.writeText(text);
 				new Notice("Context copied — paste with Cmd+V / Ctrl+V.");
 			}
@@ -697,6 +701,8 @@ export class AIChatView extends ItemView {
 			if (!parts.length) { new Notice("No readable notes found."); return; }
 			const { text, truncated } = buildContextString(parts, s.maxContextLength, s.contextPrefix);
 			if (truncated) new Notice("Context truncated — limit reached.");
+			// Clipboard write is intentional: the user clicked "Copy" to copy
+			// their own note context to the clipboard for manual pasting.
 			await navigator.clipboard.writeText(text);
 			new Notice("Context copied to clipboard.");
 		} catch (err) {
@@ -792,6 +798,8 @@ export class AIChatView extends ItemView {
 			new Notice("Selection sent to AI.");
 		} else {
 			try {
+				// Clipboard write is a user-initiated fallback: direct injection failed,
+				// so the user's editor selection is copied on their behalf.
 				await navigator.clipboard.writeText(text);
 				new Notice("Selection copied — paste with Cmd+V / Ctrl+V.");
 			} catch {
