@@ -168,6 +168,20 @@ export default class AIChatPlugin extends Plugin {
 		if (view instanceof AIChatView) view.addActiveFile();
 	}
 
+	async saveAIResponse(): Promise<void> {
+		if (
+			!this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE).length &&
+			!this.app.workspace.getLeavesOfType(AI_CHAT_SPLIT_VIEW_TYPE).length
+		) {
+			await this.activateView();
+		}
+		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0]
+			?? this.app.workspace.getLeavesOfType(AI_CHAT_SPLIT_VIEW_TYPE)[0];
+		if (!leaf) return;
+		const view = leaf.view;
+		if (view instanceof AIChatView) await view.saveSelection();
+	}
+
 	async sendSelectionWithTemplate(selection: string, templateText: string): Promise<void> {
 		if (!this.settings.sendSelectionEnabled) {
 			new Notice("Send selected text is disabled — enable it in OmniChat settings.");

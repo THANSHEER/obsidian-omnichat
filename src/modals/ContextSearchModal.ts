@@ -15,20 +15,20 @@ interface FileEntry {
 export class ContextSearchModal extends SuggestModal<SearchResult> {
 	private onSelect: (file: TFile) => void;
 	private entries: FileEntry[];
+	private contentLoadStarted = false;
 	private static readonly MAX_RESULTS = 50;
 
 	constructor(app: App, onSelect: (file: TFile) => void) {
 		super(app);
 		this.onSelect = onSelect;
 		this.setPlaceholder("Search notes by name or content…");
-		// Build the name index synchronously; content is filled in lazily below.
+		// Build the name index only — file content is loaded lazily on first content search.
 		this.entries = app.vault.getMarkdownFiles()
 			.sort((a, b) => a.basename.localeCompare(b.basename))
 			.map(file => ({ file, pathLower: file.path.toLowerCase(), content: "", contentLower: "" }));
-		void this.preloadContent();
 	}
 
-	// Name search works immediately; content matches light up as files finish loading.
+	// Content is loaded on first query that requires full-text search (2+ chars).
 	private async preloadContent(): Promise<void> {
 		for (const entry of this.entries) {
 			try {
@@ -49,6 +49,11 @@ export class ContextSearchModal extends SuggestModal<SearchResult> {
 		}
 
 		const scanContent = q.length >= 2;  // skip the full-text scan for single chars
+		// Kick off content loading only when the user first requests a content search.
+		if (scanContent && !this.contentLoadStarted) {
+			this.contentLoadStarted = true;
+			void this.preloadContent();
+		}
 		const nameMatches: SearchResult[]    = [];
 		const contentMatches: SearchResult[] = [];
 
