@@ -47,6 +47,7 @@ export interface DockSettings {
 	stripFrontmatter: boolean;
 	saveNoteFolder: string;
 	useDateSubfolder: boolean;
+	formatAIResponse: boolean;
 	customServices: CustomService[];
 	splitPanelUrl: string;
 }
@@ -79,6 +80,7 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	stripFrontmatter:  false,
 	saveNoteFolder:    "AI Notes",
 	useDateSubfolder:  false,
+	formatAIResponse:  true,
 	customServices:    [],
 	splitPanelUrl:     SERVICE_URLS.claude,
 };
@@ -92,6 +94,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
+		this.renderSettings();
+	}
+
+	renderSettings(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 
@@ -302,6 +308,17 @@ export class AIChatSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(containerEl)
+			.setName("Auto-format AI response")
+			.setDesc("Reconstruct tables and code blocks when saving AI responses to your vault.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.formatAIResponse)
+					.onChange(async v => {
+						this.plugin.settings.formatAIResponse = v;
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		// ── Custom services ───────────────────────────────────
 		new Setting(containerEl).setName("Custom services").setHeading();
 
@@ -313,7 +330,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 					this.plugin.settings.customServices.push({ id: Date.now().toString(), label: "My AI tool", url: "https://" });
 					await this.plugin.saveSettings();
 					this.plugin.rerenderOpenViews();
-					this.display();
+					this.renderSettings();
 				}),
 			);
 
@@ -337,12 +354,13 @@ export class AIChatSettingTab extends PluginSettingTab {
 					return t;
 				})
 				.addButton(btn =>
+					// eslint-disable-next-line @typescript-eslint/no-deprecated
 					btn.setIcon("trash").setWarning().setTooltip("Remove").onClick(async () => {
 						this.plugin.settings.customServices = this.plugin.settings.customServices.filter(s => s.id !== svc.id);
 						await this.plugin.saveSettings();
 						this.plugin.rerenderOpenViews();
-						this.display();
-					}),
+						this.renderSettings();
+					})
 				);
 			row.settingEl.addClass("vc-custom-svc-row");
 		}
@@ -352,36 +370,48 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Add template")
-			.setDesc("One-click prompts that inject text into the active AI service.")
+			.setDesc("One-click prompts that inject text into the active AI service. Variables: {{selection}}, {{title}}, {{path}}, {{tags}}, {{date}}.")
 			.addButton(btn =>
 				btn.setButtonText("+ add").setCta().onClick(async () => {
 					this.plugin.settings.promptTemplates.push({ id: Date.now().toString(), label: "New template", text: "" });
 					await this.plugin.saveSettings();
-					this.display();
+					this.renderSettings();
 				}),
 			);
 
-		for (const tmpl of this.plugin.settings.promptTemplates) {
-			const row = new Setting(containerEl)
+		if (!this.plugin.settings.promptTemplates.length) {
+			new Setting(containerEl).setDesc("No templates yet — add one to get started.");
+		}
+
+		this.plugin.settings.promptTemplates.forEach((tmpl, index) => {
+			// Title row — editable label with a delete button.
+			const titleRow = new Setting(containerEl)
+				.setName(`Template ${index + 1}`)
 				.addText(t =>
-					t.setPlaceholder("Label").setValue(tmpl.label)
+					t.setPlaceholder("Title (e.g. Summarise)").setValue(tmpl.label)
 						.onChange(async v => { tmpl.label = v; await this.plugin.saveSettings(); }),
 				)
+				.addExtraButton(btn =>
+					btn.setIcon("trash").setTooltip("Delete template").onClick(async () => {
+						this.plugin.settings.promptTemplates = this.plugin.settings.promptTemplates.filter(t => t.id !== tmpl.id);
+						await this.plugin.saveSettings();
+						this.renderSettings();
+					}),
+				);
+			titleRow.settingEl.addClass("vc-template-title-row");
+
+			// Prompt row — full-width textarea for the template body.
+			const promptRow = new Setting(containerEl)
+				.setName("Prompt")
+				.setDesc("Text inserted into the AI input.")
 				.addTextArea(t => {
 					t.setPlaceholder("Prompt text…").setValue(tmpl.text)
 						.onChange(async v => { tmpl.text = v; await this.plugin.saveSettings(); });
-					t.inputEl.rows = 2;
+					t.inputEl.rows = 4;
 					t.inputEl.addClass("vc-template-textarea");
 					return t;
-				})
-				.addButton(btn =>
-					btn.setIcon("trash").setWarning().setTooltip("Delete").onClick(async () => {
-						this.plugin.settings.promptTemplates = this.plugin.settings.promptTemplates.filter(t => t.id !== tmpl.id);
-						await this.plugin.saveSettings();
-						this.display();
-					}),
-				);
-			row.settingEl.addClass("vc-template-row");
-		}
+				});
+			promptRow.settingEl.addClass("vc-template-prompt-row");
+		});
 	}
 }

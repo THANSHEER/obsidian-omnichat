@@ -84,11 +84,16 @@ describe("DEFAULT_SETTINGS", () => {
 			"stripFrontmatter",
 			"saveNoteFolder",
 			"useDateSubfolder",
+			"formatAIResponse",
 			"customServices",
 			"splitPanelUrl",
 		];
 		for (const key of requiredKeys) {
 			expect(Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)).toBe(true);
 		}
+	});
+
+	it("has formatAIResponse set to true", () => {
+		expect(DEFAULT_SETTINGS.formatAIResponse).toBe(true);
 	});
 });

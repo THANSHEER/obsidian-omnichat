@@ -74,6 +74,12 @@ export function registerCommands(plugin: AIChatPlugin): void {
 	});
 
 	plugin.addCommand({
+		id: "save-ai-response",
+		name: "Save AI response",
+		callback: () => void plugin.saveAIResponse(),
+	});
+
+	plugin.addCommand({
 		id: "send-selection-with-template",
 		name: "Send selection with template",
 		editorCallback: (editor: Editor) => {

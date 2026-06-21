@@ -55,6 +55,8 @@ export class AIChatView extends ItemView {
 	private headerEl:     HTMLElement      | null = null;
 	private hostEl:       HTMLElement      | null = null;
 	private fallbackEl:   HTMLElement      | null = null;
+	private loadingEl:      HTMLElement    | null = null;
+	private loadingLabelEl: HTMLElement    | null = null;
 	private svcDotEl:     HTMLElement      | null = null;
 	private svcSelectEl:  HTMLSelectElement | null = null;
 	private pipEl:        HTMLElement      | null = null;
@@ -189,6 +191,13 @@ export class AIChatView extends ItemView {
 		this.fallbackEl.createEl("p", { text: "Check your connection and ensure Obsidian's web viewer is enabled." });
 		this.fallbackEl.hide();
 
+		this.loadingEl = frame.createDiv({ cls: "ai-chat-browser-loading" });
+		this.loadingEl.setAttribute("role", "status");
+		this.loadingEl.setAttribute("aria-live", "polite");
+		this.loadingEl.createDiv({ cls: "ai-chat-loading-spinner" });
+		this.loadingLabelEl = this.loadingEl.createEl("p", { cls: "ai-chat-loading-text" });
+		this.loadingEl.hide();
+
 		this.mountWebview();
 	}
 
@@ -288,16 +297,17 @@ export class AIChatView extends ItemView {
 		this.copyCtxBtnEl.addEventListener("click", () => void this.handleCopyContext());
 
 		const saveBtn = right.createEl("button", { cls: "vc-save-btn", text: "Save" });
-		saveBtn.title = "Copy text in the AI page, then click save to write it to your vault";
-		saveBtn.setAttribute("aria-label", "Save clipboard to vault");
-		saveBtn.addEventListener("click", () => void this.saveFromClipboard());
+		saveBtn.title = "Select the AI text you want to keep, then click to save it to your vault";
+		saveBtn.setAttribute("aria-label", "Save selection to vault");
+		saveBtn.addEventListener("click", () => void this.saveSelection());
 
 		this.updateContextCount();
 	}
 
 	private nullRefs(): void {
 		this.appEl = null; this.headerEl = null; this.hostEl = null;
-		this.fallbackEl = null; this.svcDotEl = null; this.svcSelectEl = null;
+		this.fallbackEl = null; this.loadingEl = null; this.loadingLabelEl = null;
+		this.svcDotEl = null; this.svcSelectEl = null;
 		this.pipEl = null; this.reloadBtnEl = null;
 		this.ctxCountEl = null; this.addBtnEl = null; this.copyCtxBtnEl = null; this.contextListEl = null;
 	}
@@ -367,8 +377,21 @@ export class AIChatView extends ItemView {
 	// ── Targeted DOM updates ──────────────────────────────────
 
 	private setLoading(on: boolean): void {
-		if (on) { this.pipEl?.show(); this.reloadBtnEl?.hide(); this.fallbackEl?.hide(); }
-		else    { this.pipEl?.hide(); this.reloadBtnEl?.show(); }
+		if (on) {
+			this.pipEl?.show(); this.reloadBtnEl?.hide(); this.fallbackEl?.hide();
+			this.loadingLabelEl?.setText(`Loading ${this.currentServiceLabel()}…`);
+			this.loadingEl?.show();
+		} else {
+			this.pipEl?.hide(); this.reloadBtnEl?.show();
+			this.loadingEl?.hide();
+		}
+	}
+
+	private currentServiceLabel(): string {
+		const key = getServiceKey(this.activeUrl);
+		if (key) return SERVICE_META.find(m => m.key === key)?.label ?? "AI service";
+		const custom = this.plugin.settings.customServices.find(c => normalizeUrl(c.url) === this.activeUrl);
+		return custom?.label ?? "AI service";
 	}
 
 	private updateServiceDot(): void {
@@ -684,24 +707,38 @@ export class AIChatView extends ItemView {
 
 	// ── Save actions ──────────────────────────────────────────
 
-	private async saveFromClipboard(): Promise<void> {
-		let text: string;
+	async saveSelection(): Promise<void> {
+		const text = await this.readWebviewSelection();
+		if (!text) {
+			new Notice("Select the text you want to save in the chat first.");
+			return;
+		}
+		const serviceKey  = getServiceKey(this.activeUrl);
+		const custom      = this.plugin.settings.customServices.find(s => s.url === this.activeUrl);
+		const sourceLabel = serviceKey
+			? SERVICE_META.find(m => m.key === serviceKey)?.label ?? serviceKey
+			: custom?.label ?? null;
+		new SaveDestinationModal(
+			this.app,
+			text,
+			this.plugin.settings.saveNoteFolder,
+			this.plugin.settings.useDateSubfolder,
+			sourceLabel,
+			this.plugin.settings.formatAIResponse,
+		).open();
+	}
+
+	// Reads whatever the user has highlighted inside the embedded page. Runs in the
+	// page's own context (same channel as injection), so it's site-agnostic — no
+	// per-service selectors to maintain. Returns "" when nothing is selected.
+	private async readWebviewSelection(): Promise<string> {
+		if (!this.webview?.executeJavaScript) return "";
 		try {
-			text = await navigator.clipboard.readText();
-		} catch {
-			new Notice("Could not read clipboard. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
-			return;
-		}
-		if (!text.trim()) {
-			new Notice("Clipboard is empty. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
-			return;
-		}
-		const isContext = text.includes("--- Vault Context ---") && text.includes("--- End of Context ---");
-		if (isContext) {
-			new Notice("Clipboard has your context notes, not an AI response. Copy the AI response first (Cmd+C / Ctrl+C), then click Save.");
-			return;
-		}
-		new SaveDestinationModal(this.app, text, this.plugin.settings.saveNoteFolder, this.plugin.settings.useDateSubfolder).open();
+			const result = await this.webview.executeJavaScript(
+				"(function(){var s=window.getSelection?window.getSelection():null;return s?s.toString():'';})()",
+			);
+			return typeof result === "string" ? result.trim() : "";
+		} catch { return ""; }
 	}
 
 	// ── Navigation ────────────────────────────────────────────
@@ -783,24 +820,109 @@ export class AIChatView extends ItemView {
 					}
 					if (!el) return false;
 					el.focus();
-					if (el.tagName === 'TEXTAREA') {
+
+					var isTextarea = el.tagName === 'TEXTAREA';
+
+					function fireInput(t) {
+						t.dispatchEvent(new Event('input',  { bubbles: true }));
+						t.dispatchEvent(new Event('change', { bubbles: true }));
+					}
+
+					// Force the field empty through the editor's own pipeline. Used after the
+					// message is sent, since some sites read the DOM to send but only clear
+					// their internal model afterwards — leaving the injected text stranded.
+					function clearField(t) {
+						try {
+							if (t.tagName === 'TEXTAREA') {
+								var d = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+								if (d && d.set) d.set.call(t, ''); else t.value = '';
+								fireInput(t);
+								return;
+							}
+							t.focus();
+							var s = t.ownerDocument.getSelection();
+							var r = t.ownerDocument.createRange();
+							r.selectNodeContents(t);
+							s.removeAllRanges();
+							s.addRange(r);
+							if (!document.execCommand('delete', false)) t.textContent = '';
+							t.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+						} catch (e) { /* best effort */ }
+					}
+
+					// Arm a one-shot "clear once sent" guard: when the user submits this
+					// message (Enter without Shift, or a send-like button), wipe the input a
+					// beat later so it never holds the already-sent text. Works on every site.
+					function armAutoClear(t) {
+						if (t.__omniDisarm) t.__omniDisarm();
+						var fired = false;
+						function schedule() {
+							if (fired) return;
+							fired = true;
+							disarm();
+							// Clear twice: once after the site reads & sends, again a beat later in
+							// case the editor re-renders and restores the stale text.
+							setTimeout(function () { clearField(t); }, 350);
+							setTimeout(function () { clearField(t); }, 800);
+						}
+						function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) schedule(); }
+						function onClick(e) {
+							var b = e.target && e.target.closest ? e.target.closest('button,[role="button"]') : null;
+							if (!b) return;
+							// Match send/submit buttons across sites — many (e.g. Gemini) are
+							// icon-only with the hint in the class or data-testid, not aria-label.
+							var cls  = (typeof b.className === 'string') ? b.className : ((b.className && b.className.baseVal) || '');
+							var hint = (
+								(b.getAttribute('aria-label')  || '') + ' ' +
+								(b.getAttribute('title')       || '') + ' ' +
+								(b.getAttribute('data-testid') || '') + ' ' +
+								cls + ' ' +
+								(b.getAttribute('type')        || '')
+							).toLowerCase();
+							if (/send|submit/.test(hint)) schedule();
+						}
+						function disarm() {
+							t.removeEventListener('keydown', onKey, true);
+							t.ownerDocument.removeEventListener('click', onClick, true);
+							t.__omniDisarm = null;
+						}
+						t.addEventListener('keydown', onKey, true);
+						t.ownerDocument.addEventListener('click', onClick, true);
+						t.__omniDisarm = disarm;
+						setTimeout(function () { if (!fired) disarm(); }, 60000); // safety: never clear a much-later message
+					}
+
+					var inserted = false;
+					if (isTextarea) {
 						var desc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
 						if (desc && desc.set) desc.set.call(el, el.value + ctx);
 						else el.value = el.value + ctx;
-						el.dispatchEvent(new Event('input',  { bubbles: true }));
-						el.dispatchEvent(new Event('change', { bubbles: true }));
-						return true;
-					}
-					var ok = document.execCommand('insertText', false, ctx);
-					if (!ok) {
+						fireInput(el);
+						inserted = true;
+					} else {
+						// contenteditable rich editor (ProseMirror/Lexical/Quill/Slate): route the
+						// text through the editor's OWN paste pipeline so its internal model — not
+						// just the visible DOM — holds the text. Caret to the end first, then paste.
+						var sel = el.ownerDocument.getSelection();
+						if (sel) {
+							var range = el.ownerDocument.createRange();
+							range.selectNodeContents(el);
+							range.collapse(false);
+							sel.removeAllRanges();
+							sel.addRange(range);
+						}
 						try {
 							var dt = new DataTransfer();
 							dt.setData('text/plain', ctx);
-							el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-						} catch(e) { return false; }
+							// dispatchEvent() returns false when the editor preventDefaults — i.e.
+							// it consumed the paste and updated its model. That's our success.
+							if (!el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))) inserted = true;
+						} catch (e) { /* editor ignored the synthetic paste — fall through */ }
+						if (!inserted) inserted = document.execCommand('insertText', false, ctx);
 					}
-					el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, data: ctx }));
-					return true;
+
+					if (inserted) armAutoClear(el);
+					return inserted;
 				})(${json})
 			`);
 			return result === true;

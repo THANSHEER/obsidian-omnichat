@@ -1,16 +1,26 @@
 import { App, Modal, Notice, TFile } from "obsidian";
 import { FilePickerModal } from "./FilePickerModal";
+import { formatAIResponseText } from "../utils";
 
 export class SaveDestinationModal extends Modal {
 	private text: string;
 	private saveNoteFolder: string;
 	private useDateSubfolder: boolean;
+	private sourceService: string | null;
 
-	constructor(app: App, text: string, saveNoteFolder: string, useDateSubfolder = false) {
+	constructor(
+		app: App,
+		text: string,
+		saveNoteFolder: string,
+		useDateSubfolder = false,
+		sourceService: string | null = null,
+		formatEnabled = true,
+	) {
 		super(app);
-		this.text             = text;
+		this.text             = formatEnabled ? formatAIResponseText(text) : text;
 		this.saveNoteFolder   = saveNoteFolder;
 		this.useDateSubfolder = useDateSubfolder;
+		this.sourceService    = sourceService;
 	}
 
 	onOpen(): void {
@@ -30,6 +40,25 @@ export class SaveDestinationModal extends Modal {
 
 		const appendBtn = btns.createEl("button", { text: "Append to existing note", cls: "save-dest-btn" });
 		appendBtn.addEventListener("click", () => { this.appendToExisting(); });
+
+		const cursorBtn = btns.createEl("button", { text: "Insert at cursor", cls: "save-dest-btn" });
+		cursorBtn.addEventListener("click", () => { this.insertAtCursor(); });
+	}
+
+	private insertAtCursor(): void {
+		this.close();
+		const editor = this.app.workspace.activeEditor?.editor;
+		if (!editor) {
+			new Notice("No active note open in the editor — open a note, place your cursor, then try again.");
+			return;
+		}
+		editor.replaceSelection(this.text);
+		new Notice("Inserted at cursor.");
+	}
+
+	private buildFrontmatter(now: Date): string {
+		const escape = (v: string): string => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+		return `---\nsource: ${escape(this.sourceService ?? "Unknown")}\nsaved: ${escape(now.toISOString())}\n---\n\n`;
 	}
 
 	private async saveAsNewNote(): Promise<void> {
@@ -46,7 +75,7 @@ export class SaveDestinationModal extends Modal {
 			const ms3  = String(now.getMilliseconds()).padStart(3, "0");
 			const name = `AI Response ${dateStr} ${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}-${ms3}`;
 			const path = `${folder}/${name}.md`;
-			const file = await this.app.vault.create(path, this.text);
+			const file = await this.app.vault.create(path, this.buildFrontmatter(now) + this.text);
 			new Notice(`Saved to ${file.path}`);
 			const leaf = this.app.workspace.getLeaf(false);
 			if (leaf) await leaf.openFile(file);
