@@ -94,6 +94,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
+		this.renderSettings();
+	}
+
+	renderSettings(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 
@@ -326,7 +330,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 					this.plugin.settings.customServices.push({ id: Date.now().toString(), label: "My AI tool", url: "https://" });
 					await this.plugin.saveSettings();
 					this.plugin.rerenderOpenViews();
-					this.display();
+					this.renderSettings();
 				}),
 			);
 
@@ -350,12 +354,13 @@ export class AIChatSettingTab extends PluginSettingTab {
 					return t;
 				})
 				.addButton(btn =>
+					// eslint-disable-next-line @typescript-eslint/no-deprecated
 					btn.setIcon("trash").setWarning().setTooltip("Remove").onClick(async () => {
 						this.plugin.settings.customServices = this.plugin.settings.customServices.filter(s => s.id !== svc.id);
 						await this.plugin.saveSettings();
 						this.plugin.rerenderOpenViews();
-						this.display();
-					}),
+						this.renderSettings();
+					})
 				);
 			row.settingEl.addClass("vc-custom-svc-row");
 		}
@@ -370,7 +375,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 				btn.setButtonText("+ add").setCta().onClick(async () => {
 					this.plugin.settings.promptTemplates.push({ id: Date.now().toString(), label: "New template", text: "" });
 					await this.plugin.saveSettings();
-					this.display();
+					this.renderSettings();
 				}),
 			);
 
@@ -390,7 +395,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 					btn.setIcon("trash").setTooltip("Delete template").onClick(async () => {
 						this.plugin.settings.promptTemplates = this.plugin.settings.promptTemplates.filter(t => t.id !== tmpl.id);
 						await this.plugin.saveSettings();
-						this.display();
+						this.renderSettings();
 					}),
 				);
 			titleRow.settingEl.addClass("vc-template-title-row");
