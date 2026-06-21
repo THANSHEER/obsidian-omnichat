@@ -353,14 +353,17 @@ export class AIChatSettingTab extends PluginSettingTab {
 					t.inputEl.addClass("vc-custom-svc-url");
 					return t;
 				})
-				.addButton(btn =>
-					btn.setIcon("trash").setDestructive().setTooltip("Remove").onClick(async () => {
+				.addButton(btn => {
+					// Apply warning colour without using the deprecated setWarning() or the
+					// v1.13-gated setDestructive() — both are unavailable at minAppVersion 1.7.2.
+					btn.buttonEl.addClass("mod-warning");
+					btn.setIcon("trash").setTooltip("Remove").onClick(async () => {
 						this.plugin.settings.customServices = this.plugin.settings.customServices.filter(s => s.id !== svc.id);
 						await this.plugin.saveSettings();
 						this.plugin.rerenderOpenViews();
 						this.renderSettings();
-					})
-				);
+					});
+				});
 			row.settingEl.addClass("vc-custom-svc-row");
 		}
 
