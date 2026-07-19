@@ -80,9 +80,9 @@ export class ContextSearchModal extends SuggestModal<SearchResult> {
 	}
 
 	renderSuggestion(result: SearchResult, el: HTMLElement): void {
-		el.createEl("div", { text: result.file.path, cls: "ctx-search-path" });
+		el.createDiv({ text: result.file.path, cls: "ctx-search-path" });
 		if (result.snippet) {
-			el.createEl("div", { text: result.snippet, cls: "ctx-search-snippet" });
+			el.createDiv({ text: result.snippet, cls: "ctx-search-snippet" });
 		}
 	}
 

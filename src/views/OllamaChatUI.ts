@@ -1,14 +1,4 @@
-/* eslint-disable @microsoft/sdl/no-inner-html */
-/* eslint-disable no-unsanitized/property */
-/* eslint-disable obsidianmd/no-static-styles-assignment */
-/* eslint-disable no-restricted-globals */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable obsidianmd/prefer-active-doc */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
-import { Notice } from "obsidian";
+import { Notice, setIcon } from "obsidian";
 import type AIChatPlugin from "../main";
 
 export class OllamaChatUI {
@@ -32,58 +22,45 @@ export class OllamaChatUI {
 	}
 	
 	private render() {
-		this.container.innerHTML = `
-			<div class="ollama-glass-header">
-				<div class="ollama-header-title">
-					<div class="ollama-glow-dot"></div>
-					<span class="ollama-gradient-text">Ollama Local</span>
-				</div>
-				<div class="ollama-select-wrapper">
-					<select class="ollama-model-select">
-						<option value="">No models found</option>
-					</select>
-					<div class="ollama-select-arrow"></div>
-				</div>
-			</div>
-			
-			<div class="ollama-chat-scroll-area">
-				<div class="ollama-chat-log">
-					<div class="ollama-welcome-card">
-						<h4>Welcome to Local AI</h4>
-						<p>Fully private, running right on your machine.</p>
-					</div>
-				</div>
-			</div>
-			
-			<div class="ollama-input-container">
-				<div class="ollama-input-glass">
-					<textarea class="ollama-input-box" placeholder="Ask Ollama anything..." rows="1"></textarea>
-					<button class="ollama-send-btn" disabled>
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<line x1="22" y1="2" x2="11" y2="13"></line>
-							<polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-						</svg>
-					</button>
-				</div>
-				<div class="ollama-footer-text">Powered by Ollama API at <span class="ollama-api-url-text"></span></div>
-			</div>
-		`;
+		this.container.empty();
 		
-		this.modelSelect = this.container.querySelector(".ollama-model-select") as HTMLSelectElement;
-		this.chatLog = this.container.querySelector(".ollama-chat-log") as HTMLElement;
-		this.input = this.container.querySelector(".ollama-input-box") as HTMLTextAreaElement;
-		this.sendBtn = this.container.querySelector(".ollama-send-btn") as HTMLButtonElement;
+		const header = this.container.createDiv({ cls: "ollama-glass-header" });
+		const title = header.createDiv({ cls: "ollama-header-title" });
+		title.createDiv({ cls: "ollama-glow-dot" });
+		title.createSpan({ cls: "ollama-gradient-text", text: "Ollama Local" });
 		
-		const footerText = this.container.querySelector(".ollama-api-url-text");
-		if (footerText) footerText.textContent = this.plugin.settings.ollamaApiUrl;
+		const selectWrapper = header.createDiv({ cls: "ollama-select-wrapper" });
+		this.modelSelect = selectWrapper.createEl("select", { cls: "ollama-model-select" });
+		this.modelSelect.createEl("option", { value: "", text: "No models found" });
+		selectWrapper.createDiv({ cls: "ollama-select-arrow" });
+		
+		const scrollArea = this.container.createDiv({ cls: "ollama-chat-scroll-area" });
+		this.chatLog = scrollArea.createDiv({ cls: "ollama-chat-log" });
+		
+		const welcomeCard = this.chatLog.createDiv({ cls: "ollama-welcome-card" });
+		welcomeCard.createEl("h4", { text: "Welcome to local AI" });
+		welcomeCard.createEl("p", { text: "Fully private, running right on your machine." });
+		
+		const inputContainer = this.container.createDiv({ cls: "ollama-input-container" });
+		const inputGlass = inputContainer.createDiv({ cls: "ollama-input-glass" });
+		this.input = inputGlass.createEl("textarea", { cls: "ollama-input-box" });
+		this.input.placeholder = "Ask ollama anything...";
+		this.input.rows = 1;
+		
+		this.sendBtn = inputGlass.createEl("button", { cls: "ollama-send-btn" });
+		this.sendBtn.disabled = true;
+		setIcon(this.sendBtn, "send");
+		
+		const footerTextContainer = inputContainer.createDiv({ cls: "ollama-footer-text", text: "Powered by Ollama API at " });
+		footerTextContainer.createSpan({ cls: "ollama-api-url-text", text: this.plugin.settings.ollamaApiUrl });
 		
 		this.setupListeners();
 	}
 	
 	private setupListeners() {
 		this.input.addEventListener("input", () => {
-			this.input.style.height = "auto";
-			this.input.style.height = Math.min(this.input.scrollHeight, 120) + "px";
+			(this.input.style as unknown as Record<string, string>).height = "auto";
+			(this.input.style as unknown as Record<string, string>).height = Math.min(this.input.scrollHeight, 120) + "px";
 			this.sendBtn.disabled = this.input.value.trim() === "" || this.isGenerating;
 		});
 		
@@ -100,20 +77,18 @@ export class OllamaChatUI {
 	private async fetchModels() {
 		try {
 			const baseUrl = this.plugin.settings.ollamaApiUrl.replace(/\/$/, "");
-			const res = await fetch(`${baseUrl}/api/tags`);
+			const res = await activeWindow.fetch(`${baseUrl}/api/tags`);
 			if (!res.ok) throw new Error("Failed to fetch models");
-			const data = await res.json();
+			const data = await res.json() as { models?: { name: string }[] };
 			if (data.models && data.models.length > 0) {
-				this.modelSelect.innerHTML = "";
+				this.modelSelect.empty();
 				for (const m of data.models) {
-					const opt = document.createElement("option");
-					opt.value = m.name;
-					opt.textContent = m.name;
-					this.modelSelect.appendChild(opt);
+					this.modelSelect.createEl("option", { value: m.name ?? "", text: m.name ?? "" });
 				}
 			}
-		} catch (err) {
-			this.modelSelect.innerHTML = `<option value="">Ollama not running?</option>`;
+		} catch {
+			this.modelSelect.empty();
+			this.modelSelect.createEl("option", { value: "", text: "Ollama not running?" });
 		}
 	}
 	
@@ -123,28 +98,30 @@ export class OllamaChatUI {
 		this.input.focus();
 	}
 	
+	private setBubbleText(bubble: HTMLElement, text: string) {
+		bubble.empty();
+		const lines = text.split("\n");
+		for (let i = 0; i < lines.length; i++) {
+			bubble.appendText(lines[i] ?? "");
+			if (i < lines.length - 1) {
+				bubble.createEl("br");
+			}
+		}
+	}
+	
 	private appendMessage(role: "user" | "bot", content: string): HTMLElement {
-		const msgEl = document.createElement("div");
-		msgEl.className = `ollama-msg-wrapper ${role}`;
-		
-		const bubble = document.createElement("div");
-		bubble.className = `ollama-bubble ${role}`;
+		const msgEl = this.chatLog.createDiv({ cls: `ollama-msg-wrapper ${role}` });
+		const bubble = msgEl.createDiv({ cls: `ollama-bubble ${role}` });
 		
 		if (role === "bot") {
-			// For simplicity we just use basic line breaks for now, 
-			// the plugin's save logic handles markdown later.
-			bubble.innerHTML = this.escapeHtml(content).replace(/\n/g, "<br>");
+			this.setBubbleText(bubble, content);
 		} else {
 			bubble.textContent = content;
 		}
 		
-		msgEl.appendChild(bubble);
-		
-		// Remove welcome card on first message
 		const welcome = this.chatLog.querySelector(".ollama-welcome-card");
 		if (welcome) welcome.remove();
 		
-		this.chatLog.appendChild(msgEl);
 		this.scrollToBottom();
 		return bubble;
 	}
@@ -156,18 +133,8 @@ export class OllamaChatUI {
 		}
 	}
 	
-	private escapeHtml(unsafe: string) {
-		return unsafe
-			 .replace(/&/g, "&amp;")
-			 .replace(/</g, "&lt;")
-			 .replace(/>/g, "&gt;")
-			 .replace(/"/g, "&quot;")
-			 .replace(/'/g, "&#039;");
-	}
-	
 	private async sendMessage() {
 		if (this.isGenerating) {
-			// Allow stopping generation
 			if (this.abortController) {
 				this.abortController.abort();
 				this.abortController = null;
@@ -184,26 +151,30 @@ export class OllamaChatUI {
 		}
 		
 		this.input.value = "";
-		this.input.style.height = "auto";
+		(this.input.style as unknown as Record<string, string>).height = "auto";
 		this.sendBtn.disabled = true;
 		
 		this.appendMessage("user", text);
 		this.history.push({ role: "user", content: text });
 		
 		this.isGenerating = true;
-		this.sendBtn.innerHTML = `<div class="ollama-stop-square"></div>`;
+		this.sendBtn.empty();
+		this.sendBtn.createDiv({ cls: "ollama-stop-square" });
 		this.sendBtn.disabled = false;
 		this.sendBtn.classList.add("is-generating");
 		
 		const botBubble = this.appendMessage("bot", "");
-		botBubble.innerHTML = `<span class="ollama-typing-dot"></span><span class="ollama-typing-dot"></span><span class="ollama-typing-dot"></span>`;
+		botBubble.empty();
+		botBubble.createSpan({ cls: "ollama-typing-dot" });
+		botBubble.createSpan({ cls: "ollama-typing-dot" });
+		botBubble.createSpan({ cls: "ollama-typing-dot" });
 		
 		let fullResponse = "";
 		this.abortController = new AbortController();
 		
 		try {
 			const baseUrl = this.plugin.settings.ollamaApiUrl.replace(/\/$/, "");
-			const res = await fetch(`${baseUrl}/api/chat`, {
+			const res = await activeWindow.fetch(`${baseUrl}/api/chat`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
@@ -217,7 +188,7 @@ export class OllamaChatUI {
 			if (!res.ok) throw new Error(`Ollama API Error: ${res.status}`);
 			if (!res.body) throw new Error("No response body");
 			
-			botBubble.innerHTML = "";
+			botBubble.empty();
 			const reader = res.body.getReader();
 			const decoder = new TextDecoder("utf-8");
 			
@@ -231,40 +202,47 @@ export class OllamaChatUI {
 				for (const line of lines) {
 					if (!line.trim()) continue;
 					try {
-						const parsed = JSON.parse(line);
+						const parsed = JSON.parse(line) as { message?: { content?: string } };
 						if (parsed.message?.content) {
 							fullResponse += parsed.message.content;
-							botBubble.innerHTML = this.escapeHtml(fullResponse).replace(/\n/g, "<br>");
+							this.setBubbleText(botBubble, fullResponse);
 							this.scrollToBottom();
 						}
-					} catch (e) {
+					} catch {
 						// parse error on chunk boundary, ignore for now
 					}
 				}
 			}
 			
 			this.history.push({ role: "assistant", content: fullResponse });
-		} catch (err: any) {
-			if (err.name === "AbortError") {
-				botBubble.innerHTML += "<br><em>[Generation stopped]</em>";
+		} catch (err: unknown) {
+			if (err instanceof Error && err.name === "AbortError") {
+				botBubble.createEl("br");
+				botBubble.createEl("em", { text: "[generation stopped]" });
 				this.history.push({ role: "assistant", content: fullResponse });
 			} else {
-				botBubble.innerHTML = `<span style="color:var(--text-error)">Error connecting to Ollama: ${err.message}</span>`;
+				botBubble.empty();
+				const msg = err instanceof Error ? err.message : String(err);
+				botBubble.createSpan({ text: `Error connecting to Ollama: ${msg}` });
+				((botBubble.lastChild as HTMLElement).style as unknown as Record<string, string>).color = "var(--text-error)";
 				console.error(err);
 			}
 		} finally {
 			this.isGenerating = false;
 			this.abortController = null;
-			this.sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
+			this.sendBtn.empty();
+			setIcon(this.sendBtn, "send");
 			this.sendBtn.classList.remove("is-generating");
-			this.input.dispatchEvent(new Event("input")); // update disabled state
+			this.input.dispatchEvent(new Event("input"));
 		}
 	}
 	
 	public getSelectedText(): string {
-		// Just a mockup since webviews have executeJavaScript, but for native we just return empty
-		// since we don't have a webview. Users can just copy paste natively.
-		const selection = window.getSelection();
+		const selection = activeWindow.getSelection();
 		return selection ? selection.toString() : "";
+	}
+
+	public reload(): void {
+		void this.fetchModels();
 	}
 }
