@@ -32,7 +32,7 @@
 
 OmniChat is a powerful desktop-only Obsidian plugin that embeds AI chat websites in a persistent sidebar. It allows you to seamlessly send selected text, inject vault context into your active chat, and save responses back into your Obsidian vault—all without leaving your workflow.
 
-- 🌐 **9 Built-in Services:** Switch instantly between ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, and Kimi from a single panel.
+- 🌐 **10 Built-in Services:** Switch instantly between ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, Kimi, and Ollama from a single panel.
 - 🔗 **Bring Your Own AI:** Add custom AI tools by URL and keep them within the same quick selector.
 - 💬 **Send Selection:** Send selected editor text straight into the active chat with a single click.
 - 📚 **Build Context:** Build reusable vault context from your notes, open tabs, or full folders, then inject it instantly.
@@ -77,10 +77,10 @@ Collect context from specific folders or notes and inject them straight into the
 - [x] Dual split-panel view
 - [x] Save responses to active notes
 - [x] Persistent webview sessions
-- [ ] Dedicated settings for specific AI configurations
+- [x] Dedicated settings for specific AI configurations
 - [ ] Auto-generate tags and properties for saved responses
 - [ ] Custom system prompt support for injected context
-- [ ] Support for local LLMs (Ollama)
+- [x] Support for local LLMs (Ollama)
 
 ---
 

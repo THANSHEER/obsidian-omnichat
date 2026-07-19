@@ -7,6 +7,7 @@ export const GROK_URL       = "https://grok.com/";
 export const COPILOT_URL    = "https://copilot.microsoft.com/";
 export const MANUS_URL      = "https://manus.im/";
 export const KIMI_URL       = "https://kimi.ai/";
+export const OLLAMA_URL     = "http://localhost:3000/";
 
 /** Names of the per-service enable toggles in DockSettings. */
 export type ServiceEnableKey =
@@ -18,7 +19,8 @@ export type ServiceEnableKey =
 	| "enableGrok"
 	| "enableCopilot"
 	| "enableManus"
-	| "enableKimi";
+	| "enableKimi"
+	| "enableOllama";
 
 /** One row of the built-in service registry. */
 export interface ServiceMeta {
@@ -46,6 +48,7 @@ export const SERVICE_META = [
 	{ key: "copilot",    label: "Copilot",    url: COPILOT_URL,    hosts: ["copilot.microsoft.com"],              enableKey: "enableCopilot" },
 	{ key: "manus",      label: "Manus AI",   url: MANUS_URL,      hosts: ["manus.im"],                           enableKey: "enableManus" },
 	{ key: "kimi",       label: "Kimi",       url: KIMI_URL,       hosts: ["kimi.ai"],                            enableKey: "enableKimi" },
+	{ key: "ollama",     label: "Ollama",     url: OLLAMA_URL,     hosts: ["localhost", "127.0.0.1"],             enableKey: "enableOllama" },
 ] as const satisfies readonly ServiceMeta[];
 
 export type ServiceKey = typeof SERVICE_META[number]["key"];

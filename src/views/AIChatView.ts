@@ -5,6 +5,7 @@ import { ContextItem } from "../settings";
 import { ContextSearchModal } from "../modals/ContextSearchModal";
 import { FolderPickerModal } from "../modals/FolderPickerModal";
 import { SaveDestinationModal } from "../modals/SaveDestinationModal";
+import { OllamaChatUI } from "./OllamaChatUI";
 import {
 	normalizeUrl,
 	getServiceKey,
@@ -55,6 +56,9 @@ export class AIChatView extends ItemView {
 	private headerEl:     HTMLElement      | null = null;
 	private hostEl:       HTMLElement      | null = null;
 	private fallbackEl:   HTMLElement      | null = null;
+	private browserShellEl: HTMLElement    | null = null;
+	private nativeUiShellEl: HTMLElement   | null = null;
+	private ollamaChat:   OllamaChatUI     | null = null;
 	private loadingEl:      HTMLElement    | null = null;
 	private loadingLabelEl: HTMLElement    | null = null;
 	private svcDotEl:     HTMLElement      | null = null;
@@ -138,11 +142,20 @@ export class AIChatView extends ItemView {
 		}
 
 		// Update webview URL if needed — does NOT rebuild the DOM.
-		if (this.webview && this.webview.src !== this.activeUrl) {
-			this.webviewReady = false;
-			this.setLoading(true);
-			this.fallbackEl?.hide();
-			this.webview.src = this.activeUrl;
+		const isOllama = getServiceKey(this.activeUrl) === "ollama";
+		if (isOllama) {
+			this.browserShellEl?.hide();
+			this.nativeUiShellEl?.show();
+			this.setLoading(false);
+		} else {
+			this.nativeUiShellEl?.hide();
+			this.browserShellEl?.show();
+			if (this.webview && this.webview.src !== this.activeUrl) {
+				this.webviewReady = false;
+				this.setLoading(true);
+				this.fallbackEl?.hide();
+				this.webview.src = this.activeUrl;
+			}
 		}
 
 		// Restart idle timer so a changed autoRefreshMinutes takes effect immediately.
@@ -180,10 +193,14 @@ export class AIChatView extends ItemView {
 		if (hasServices) this.buildServiceRow();
 		this.buildContextBar();
 
-		const shell = this.appEl.createEl("section", { cls: "ai-chat-browser-shell" });
-		shell.setAttribute("aria-label", "Embedded AI browser");
-		const frame   = shell.createDiv({ cls: "ai-chat-browser-frame" });
+		this.browserShellEl = this.appEl.createEl("section", { cls: "ai-chat-browser-shell" });
+		this.browserShellEl.setAttribute("aria-label", "Embedded AI browser");
+		const frame   = this.browserShellEl.createDiv({ cls: "ai-chat-browser-frame" });
 		this.hostEl   = frame.createDiv({ cls: "ai-chat-browser-host" });
+
+		this.nativeUiShellEl = this.appEl.createEl("section", { cls: "ai-chat-native-shell" });
+		this.nativeUiShellEl.hide();
+		this.ollamaChat = new OllamaChatUI(this.nativeUiShellEl, this.plugin);
 
 		this.fallbackEl = frame.createDiv({ cls: "ai-chat-browser-fallback" });
 		this.fallbackEl.setAttribute("role", "alert");
@@ -310,6 +327,7 @@ export class AIChatView extends ItemView {
 		this.svcDotEl = null; this.svcSelectEl = null;
 		this.pipEl = null; this.reloadBtnEl = null;
 		this.ctxCountEl = null; this.addBtnEl = null; this.copyCtxBtnEl = null; this.contextListEl = null;
+		this.browserShellEl = null; this.nativeUiShellEl = null; this.ollamaChat = null;
 	}
 
 	// ── Webview ───────────────────────────────────────────────
@@ -322,6 +340,12 @@ export class AIChatView extends ItemView {
 		wv.setAttribute("partition",      "persist:aibrowser-chat");
 		wv.setAttribute("allowpopups",    "");
 		wv.setAttribute("webpreferences", "contextIsolation=yes");
+		
+		// Spoof User-Agent to prevent AI providers from blocking Electron/Obsidian
+		// eslint-disable-next-line obsidianmd/platform
+		const cleanUserAgent = navigator.userAgent.replace(/obsidian\/\d+\.\d+\.\d+ /i, "").replace(/Electron\/\d+\.\d+\.\d+ /i, "");
+		wv.setAttribute("useragent", cleanUserAgent);
+
 		wv.src = this.activeUrl;
 
 		wv.addEventListener("dom-ready", () => {
@@ -342,6 +366,18 @@ export class AIChatView extends ItemView {
 		});
 		wv.addEventListener("did-navigate",         () => { this.lastInteractedAt = Date.now(); });
 		wv.addEventListener("did-navigate-in-page", () => { this.lastInteractedAt = Date.now(); });
+		wv.addEventListener("new-window", (e: Event) => {
+			const ev = e as Event & { url?: string };
+			if (typeof ev.url !== "string") return;
+			// OAuth popups (like Google Sign-In) break in Electron webviews due to context isolation
+			// severing the window.opener connection. Route them into the main webview instead.
+			if (/accounts\.google|appleid\.apple|login\.microsoft/i.test(ev.url) || /auth|login|signin|oauth/i.test(ev.url)) {
+				wv.src = ev.url;
+			} else {
+				// Regular external links (like citations) open safely in the user's default system browser.
+				window.open(ev.url);
+			}
+		});
 
 		this.hostEl.appendChild(wv);
 		this.webview = wv;
@@ -738,6 +774,9 @@ export class AIChatView extends ItemView {
 	// page's own context (same channel as injection), so it's site-agnostic — no
 	// per-service selectors to maintain. Returns "" when nothing is selected.
 	private async readWebviewSelection(): Promise<string> {
+		if (getServiceKey(this.activeUrl) === "ollama" && this.ollamaChat) {
+			return this.ollamaChat.getSelectedText();
+		}
 		if (!this.webview?.executeJavaScript) return "";
 		try {
 			const result = await this.webview.executeJavaScript(
@@ -769,11 +808,21 @@ export class AIChatView extends ItemView {
 		if (this.isPrimary) void this.plugin.setWebAppUrl(safeUrl);
 		else                void this.plugin.setSplitPanelUrl(safeUrl);
 		this.updateServiceDot();
-		if (this.webview && this.webview.src !== safeUrl) {
-			this.webviewReady = false;
-			this.setLoading(true);
-			this.fallbackEl?.hide();
-			this.webview.src = safeUrl;
+		
+		const isOllama = getServiceKey(safeUrl) === "ollama";
+		if (isOllama) {
+			this.browserShellEl?.hide();
+			this.nativeUiShellEl?.show();
+			this.setLoading(false);
+		} else {
+			this.nativeUiShellEl?.hide();
+			this.browserShellEl?.show();
+			if (this.webview && this.webview.src !== safeUrl) {
+				this.webviewReady = false;
+				this.setLoading(true);
+				this.fallbackEl?.hide();
+				this.webview.src = safeUrl;
+			}
 		}
 	}
 
@@ -809,6 +858,10 @@ export class AIChatView extends ItemView {
 	}
 
 	private async injectIntoWebview(text: string): Promise<boolean> {
+		if (getServiceKey(this.activeUrl) === "ollama" && this.ollamaChat) {
+			this.ollamaChat.injectContext(text);
+			return true;
+		}
 		if (!this.webview?.executeJavaScript) return false;
 		try {
 			const json   = JSON.stringify(text);

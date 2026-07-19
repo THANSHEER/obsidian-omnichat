@@ -35,6 +35,14 @@ describe("DEFAULT_SETTINGS", () => {
 		expect(DEFAULT_SETTINGS.enableGrok).toBe(true);
 	});
 
+	it("enables Ollama by default", () => {
+		expect(DEFAULT_SETTINGS.enableOllama).toBe(true);
+	});
+
+	it("sets ollamaApiUrl to default local port", () => {
+		expect(DEFAULT_SETTINGS.ollamaApiUrl).toBe("http://127.0.0.1:11434");
+	});
+
 	it("starts with an empty contextItems array", () => {
 		expect(DEFAULT_SETTINGS.contextItems).toEqual([]);
 	});
@@ -74,6 +82,8 @@ describe("DEFAULT_SETTINGS", () => {
 			"enableCopilot",
 			"enableManus",
 			"enableKimi",
+			"enableOllama",
+			"ollamaApiUrl",
 			"autoRefreshMinutes",
 			"autoClearContext",
 			"contextPrefix",

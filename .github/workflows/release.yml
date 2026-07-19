@@ -2,8 +2,8 @@ name: Release
 
 on:
     push:
-        tags:
-            - "[0-9]*.[0-9]*.[0-9]*"
+        branches:
+            - main
 
 permissions:
     contents: write
@@ -40,9 +40,14 @@ jobs:
                       manifest.json
                       styles.css
 
+            - name: Get Version
+              id: get_version
+              run: echo "VERSION=$(node -p "require('./manifest.json').version")" >> $GITHUB_ENV
+
             - name: Create GitHub release
               uses: softprops/action-gh-release@v2
               with:
+                  tag_name: ${{ env.VERSION }}
                   token: ${{ secrets.GITHUB_TOKEN }}
                   files: |
                       main.js

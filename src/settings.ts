@@ -37,6 +37,8 @@ export interface DockSettings {
 	enableCopilot: boolean;
 	enableManus: boolean;
 	enableKimi: boolean;
+	enableOllama: boolean;
+	ollamaApiUrl: string;
 	autoRefreshMinutes: number;
 	autoClearContext: boolean;
 	contextPrefix: string;
@@ -66,6 +68,8 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	enableCopilot:       true,
 	enableManus:         true,
 	enableKimi:          true,
+	enableOllama:        true,
+	ollamaApiUrl:        "http://127.0.0.1:11434",
 	autoRefreshMinutes:  60,
 	autoClearContext:    false,
 	contextPrefix:       "",
@@ -117,6 +121,20 @@ export class AIChatSettingTab extends PluginSettingTab {
 						}),
 				);
 		}
+
+		new Setting(containerEl)
+			.setName("Ollama API URL")
+			.setDesc("The base URL for your local or remote ollama instance (default: http://127.0.0.1:11434).")
+			.addText(t =>
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
+				t.setPlaceholder("http://127.0.0.1:11434")
+					.setValue(this.plugin.settings.ollamaApiUrl)
+					.onChange(async v => {
+						this.plugin.settings.ollamaApiUrl = v.trim() || "http://127.0.0.1:11434";
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					}),
+			);
 
 		// ── General ───────────────────────────────────────────
 		new Setting(containerEl).setName("Appearance & behaviour").setHeading();
