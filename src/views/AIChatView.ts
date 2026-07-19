@@ -340,6 +340,12 @@ export class AIChatView extends ItemView {
 		wv.setAttribute("partition",      "persist:aibrowser-chat");
 		wv.setAttribute("allowpopups",    "");
 		wv.setAttribute("webpreferences", "contextIsolation=yes");
+		
+		// Spoof User-Agent to prevent AI providers from blocking Electron/Obsidian
+		// eslint-disable-next-line obsidianmd/platform
+		const cleanUserAgent = navigator.userAgent.replace(/obsidian\/\d+\.\d+\.\d+ /i, "").replace(/Electron\/\d+\.\d+\.\d+ /i, "");
+		wv.setAttribute("useragent", cleanUserAgent);
+
 		wv.src = this.activeUrl;
 
 		wv.addEventListener("dom-ready", () => {
@@ -360,6 +366,18 @@ export class AIChatView extends ItemView {
 		});
 		wv.addEventListener("did-navigate",         () => { this.lastInteractedAt = Date.now(); });
 		wv.addEventListener("did-navigate-in-page", () => { this.lastInteractedAt = Date.now(); });
+		wv.addEventListener("new-window", (e: Event) => {
+			const ev = e as Event & { url?: string };
+			if (typeof ev.url !== "string") return;
+			// OAuth popups (like Google Sign-In) break in Electron webviews due to context isolation
+			// severing the window.opener connection. Route them into the main webview instead.
+			if (/accounts\.google|appleid\.apple|login\.microsoft/i.test(ev.url) || /auth|login|signin|oauth/i.test(ev.url)) {
+				wv.src = ev.url;
+			} else {
+				// Regular external links (like citations) open safely in the user's default system browser.
+				window.open(ev.url);
+			}
+		});
 
 		this.hostEl.appendChild(wv);
 		this.webview = wv;
