@@ -9,25 +9,26 @@ import {
 	COPILOT_URL,
 	MANUS_URL,
 	KIMI_URL,
+	OLLAMA_URL,
 	SERVICE_URLS,
 	SERVICE_META,
 } from "../constants";
 import { DEFAULT_SETTINGS } from "../settings";
 
 describe("SERVICE_URLS", () => {
-	it("has exactly nine service entries", () => {
-		expect(Object.keys(SERVICE_URLS)).toHaveLength(9);
+	it("has exactly ten service entries", () => {
+		expect(Object.keys(SERVICE_URLS)).toHaveLength(10);
 	});
 
 	it("contains all expected service keys", () => {
 		expect(Object.keys(SERVICE_URLS)).toEqual(
-			expect.arrayContaining(["chatgpt", "claude", "deepseek", "perplexity", "gemini", "grok", "copilot", "manus", "kimi"]),
+			expect.arrayContaining(["chatgpt", "claude", "deepseek", "perplexity", "gemini", "grok", "copilot", "manus", "kimi", "ollama"]),
 		);
 	});
 
-	it("every URL starts with https://", () => {
+	it("every URL starts with http:// or https://", () => {
 		for (const url of Object.values(SERVICE_URLS)) {
-			expect(url).toMatch(/^https:\/\//);
+			expect(url).toMatch(/^https?:\/\//);
 		}
 	});
 
@@ -66,6 +67,10 @@ describe("SERVICE_URLS", () => {
 	it("kimi entry matches KIMI_URL", () => {
 		expect(SERVICE_URLS.kimi).toBe(KIMI_URL);
 	});
+
+	it("ollama entry matches OLLAMA_URL", () => {
+		expect(SERVICE_URLS.ollama).toBe(OLLAMA_URL);
+	});
 });
 
 describe("individual URL constants", () => {
@@ -79,13 +84,14 @@ describe("individual URL constants", () => {
 		COPILOT_URL,
 		MANUS_URL,
 		KIMI_URL,
+		OLLAMA_URL,
 	};
 
 	for (const [name, url] of Object.entries(urlMap)) {
-		it(`${name} is a non-empty https URL`, () => {
+		it(`${name} is a non-empty http(s) URL`, () => {
 			expect(typeof url).toBe("string");
 			expect(url.length).toBeGreaterThan(0);
-			expect(url).toMatch(/^https:\/\//);
+			expect(url).toMatch(/^https?:\/\//);
 		});
 	}
 
