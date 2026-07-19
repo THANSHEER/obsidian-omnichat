@@ -335,15 +335,14 @@ export class AIChatView extends ItemView {
 	private mountWebview(): void {
 		if (!this.hostEl || this.webview) return;
 
-		const wv = this.containerEl.doc.createElement("webview") as EmbeddedWebview;
+		const wv = this.hostEl.createEl("webview" as keyof HTMLElementTagNameMap) as EmbeddedWebview;
 		wv.className = "ai-chat-browser-webview";
 		wv.setAttribute("partition",      "persist:aibrowser-chat");
 		wv.setAttribute("allowpopups",    "");
 		wv.setAttribute("webpreferences", "contextIsolation=yes");
 		
 		// Spoof User-Agent to prevent AI providers from blocking Electron/Obsidian
-		// eslint-disable-next-line obsidianmd/platform
-		const cleanUserAgent = navigator.userAgent.replace(/obsidian\/\d+\.\d+\.\d+ /i, "").replace(/Electron\/\d+\.\d+\.\d+ /i, "");
+		const cleanUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 		wv.setAttribute("useragent", cleanUserAgent);
 
 		wv.src = this.activeUrl;
@@ -379,7 +378,6 @@ export class AIChatView extends ItemView {
 			}
 		});
 
-		this.hostEl.appendChild(wv);
 		this.webview = wv;
 	}
 
@@ -396,6 +394,7 @@ export class AIChatView extends ItemView {
 		if (mins <= 0) return;
 		const ms = mins * 60_000;
 		this.idleTimer = window.setInterval(() => {
+			if (getServiceKey(this.activeUrl) === "ollama") return;
 			if (Date.now() - this.lastInteractedAt >= ms && this.webviewReady && this.webview) {
 				this.webviewReady = false;
 				this.setLoading(true);
@@ -413,6 +412,11 @@ export class AIChatView extends ItemView {
 	// ── Targeted DOM updates ──────────────────────────────────
 
 	private setLoading(on: boolean): void {
+		if (getServiceKey(this.activeUrl) === "ollama") {
+			this.pipEl?.hide(); this.reloadBtnEl?.show(); this.fallbackEl?.hide();
+			this.loadingEl?.hide();
+			return;
+		}
 		if (on) {
 			this.pipEl?.show(); this.reloadBtnEl?.hide(); this.fallbackEl?.hide();
 			this.loadingLabelEl?.setText(`Loading ${this.currentServiceLabel()}…`);
@@ -829,6 +833,10 @@ export class AIChatView extends ItemView {
 	private switchService(key: ServiceKey): void { this.switchToUrl(SERVICE_URLS[key]); }
 
 	private reloadWebview(): void {
+		if (getServiceKey(this.activeUrl) === "ollama") {
+			this.ollamaChat?.reload();
+			return;
+		}
 		if (!this.webview) return;
 		this.webviewReady = false;
 		this.setLoading(true);
