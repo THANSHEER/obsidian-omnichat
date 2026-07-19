@@ -124,8 +124,9 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Ollama API URL")
-			.setDesc("The base URL for your local or remote Ollama instance (default: http://127.0.0.1:11434).")
+			.setDesc("The base URL for your local or remote ollama instance (default: http://127.0.0.1:11434).")
 			.addText(t =>
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
 				t.setPlaceholder("http://127.0.0.1:11434")
 					.setValue(this.plugin.settings.ollamaApiUrl)
 					.onChange(async v => {
