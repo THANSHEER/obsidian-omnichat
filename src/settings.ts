@@ -1,6 +1,9 @@
 import { App, Notice, PluginSettingTab, Setting, type SettingDefinitionItem } from "obsidian";
 import AIChatPlugin from "./main";
 import { CHATGPT_URL, SERVICE_META, ServiceKey, SERVICE_URLS } from "./constants";
+import { FeatureRequestModal } from "./modals/FeatureRequestModal";
+import { FeedbackModal } from "./modals/FeedbackModal";
+import { UninstallFeedbackModal } from "./modals/UninstallFeedbackModal";
 import { getServiceKey, normalizeUrl } from "./utils";
 
 export interface ContextItem {
@@ -52,6 +55,8 @@ export interface DockSettings {
 	formatAIResponse: boolean;
 	customServices: CustomService[];
 	splitPanelUrl: string;
+	/** Last plugin version the user has run — used for first-install welcome and update changelog. */
+	lastSeenVersion: string;
 }
 
 export const DEFAULT_SETTINGS: DockSettings = {
@@ -87,6 +92,7 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	formatAIResponse:  true,
 	customServices:    [],
 	splitPanelUrl:     SERVICE_URLS.claude,
+	lastSeenVersion:   "",
 };
 
 export class AIChatSettingTab extends PluginSettingTab {
@@ -340,6 +346,36 @@ export class AIChatSettingTab extends PluginSettingTab {
 						this.plugin.settings.formatAIResponse = v;
 						await this.plugin.saveSettings();
 					}),
+			);
+
+		// ── Feedback ──────────────────────────────────────────
+		new Setting(containerEl).setName("Feedback").setHeading();
+
+		new Setting(containerEl)
+			.setName("General feedback")
+			.setDesc("Share what you like, what breaks, or what we should improve.")
+			.addButton(btn =>
+				btn.setButtonText("Give feedback").setCta().onClick(() => {
+					new FeedbackModal(this.app, "settings").open();
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName("Request a feature")
+			.setDesc("Suggest something new for OmniChat.")
+			.addButton(btn =>
+				btn.setButtonText("Request feature").onClick(() => {
+					new FeatureRequestModal(this.app).open();
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName("Uninstall feedback")
+			.setDesc("Optional — also shown when you uninstall OmniChat (not when you only turn it off).")
+			.addButton(btn =>
+				btn.setButtonText("Before you go").onClick(() => {
+					new UninstallFeedbackModal(this.app).open();
+				}),
 			);
 
 		// ── Custom services ───────────────────────────────────

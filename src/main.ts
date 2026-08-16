@@ -1,16 +1,33 @@
-import { Editor, Menu, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { App, Editor, Menu, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { registerCommands } from "./commands";
 import { SERVICE_META, SERVICE_URLS, ServiceKey } from "./constants";
+import { fetchReleaseNotes } from "./feedback/github";
+import { UpdateNotesModal } from "./modals/UpdateNotesModal";
+import { UninstallFeedbackModal } from "./modals/UninstallFeedbackModal";
+import { WelcomeModal } from "./modals/WelcomeModal";
 import { ContextItem, DEFAULT_SETTINGS, DockSettings, AIChatSettingTab } from "./settings";
 import { getServiceKey } from "./utils";
 import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
 
+/** Internal Plugins API — uninstallPlugin is not in the public typings. */
+type PluginsApi = {
+	uninstallPlugin: (pluginId: string) => Promise<void>;
+};
+
 export default class AIChatPlugin extends Plugin {
 	settings: DockSettings;
 	private statusBarEl!: HTMLElement;
+	/** True when there was no prior data.json — first-time install. */
+	private isFirstInstall = false;
+	/** False after onunload — skips late update-modal opens. */
+	private pluginActive = false;
+	/** Restored in onunload so disable does not leave a dangling patch. */
+	private originalUninstallPlugin: ((pluginId: string) => Promise<void>) | null = null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.pluginActive = true;
+		this.patchUninstallFeedback();
 
 		this.registerView(
 			AI_CHAT_VIEW_TYPE,
@@ -61,6 +78,83 @@ export default class AIChatPlugin extends Plugin {
 				void this.activateView();
 			});
 		}
+
+		this.app.workspace.onLayoutReady(() => {
+			void this.showInstallOrUpdateModal();
+		});
+	}
+
+	onunload(): void {
+		this.pluginActive = false;
+		this.unpatchUninstallFeedback();
+	}
+
+	/**
+	 * Obsidian has no public onUninstall hook. Intercept uninstallPlugin so the
+	 * feedback form runs only on uninstall — not when the plugin is merely disabled.
+	 */
+	private patchUninstallFeedback(): void {
+		const plugins = this.getPluginsApi();
+		if (!plugins) return;
+
+		this.originalUninstallPlugin = plugins.uninstallPlugin.bind(plugins);
+		const original = this.originalUninstallPlugin;
+		const pluginId = this.manifest.id;
+
+		plugins.uninstallPlugin = async (id: string) => {
+			if (id === pluginId) {
+				await this.promptUninstallFeedback();
+			}
+			return original(id);
+		};
+	}
+
+	private unpatchUninstallFeedback(): void {
+		const plugins = this.getPluginsApi();
+		if (!plugins || !this.originalUninstallPlugin) return;
+		plugins.uninstallPlugin = this.originalUninstallPlugin;
+		this.originalUninstallPlugin = null;
+	}
+
+	private getPluginsApi(): PluginsApi | null {
+		const plugins = (this.app as App & { plugins?: PluginsApi }).plugins;
+		if (!plugins || typeof plugins.uninstallPlugin !== "function") return null;
+		return plugins;
+	}
+
+	/** Show the uninstall survey and wait until the user skips or submits. */
+	private promptUninstallFeedback(): Promise<void> {
+		return new Promise(resolve => {
+			new UninstallFeedbackModal(this.app, () => resolve()).open();
+		});
+	}
+
+	/**
+	 * First install → welcome + feature onboarding.
+	 * Version bump → changelog (GitHub release notes).
+	 * Existing installs missing lastSeenVersion → set version silently (no re-onboarding).
+	 */
+	private async showInstallOrUpdateModal(): Promise<void> {
+		const current = this.manifest.version;
+		const previous = this.settings.lastSeenVersion?.trim() ?? "";
+
+		if (!previous) {
+			this.settings.lastSeenVersion = current;
+			await this.saveSettings();
+			if (this.isFirstInstall) {
+				new WelcomeModal(this.app, this).open();
+			}
+			return;
+		}
+
+		if (previous === current) return;
+
+		this.settings.lastSeenVersion = current;
+		await this.saveSettings();
+
+		const notes = await fetchReleaseNotes(current);
+		if (!this.pluginActive) return;
+		new UpdateNotesModal(this.app, current, previous, notes).open();
 	}
 
 	async activateView(): Promise<void> {
@@ -208,6 +302,7 @@ export default class AIChatPlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		const loaded = ((await this.loadData()) ?? {}) as Partial<DockSettings>;
+		this.isFirstInstall = Object.keys(loaded).length === 0;
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
 
 		// Migration: drop the removed `defaultService` field. Its value only ever

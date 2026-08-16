@@ -12,6 +12,7 @@ import {
 	firstEnabled,
 	buildContextString,
 	stripFrontmatterContent,
+	getCleanUserAgent,
 } from "../utils";
 
 export const AI_CHAT_VIEW_TYPE       = "aibrowser-chat-view";
@@ -68,7 +69,12 @@ export class AIChatView extends ItemView {
 	private ctxCountEl:    HTMLButtonElement | null = null;
 	private addBtnEl:      HTMLButtonElement | null = null;
 	private copyCtxBtnEl:  HTMLButtonElement | null = null;
+	private templatesSelectEl: HTMLSelectElement | null = null;
 	private contextListEl: HTMLElement      | null = null;
+	/** Cache so populateServiceOptions skips rebuild when unchanged. */
+	private serviceOptionsSig = "";
+	/** Cache so populateTemplateOptions skips rebuild when unchanged. */
+	private templateOptionsSig = "";
 
 	// ── Webview ───────────────────────────────────────────────
 	private webview:          EmbeddedWebview | null = null;
@@ -133,8 +139,9 @@ export class AIChatView extends ItemView {
 			else                    this.appEl.removeAttribute("data-cp-theme");
 		}
 
-		// Update service selector (handles added/removed services)
+		// Update service / template selectors only when their option sets change.
 		this.populateServiceOptions();
+		this.populateTemplateOptions();
 		this.updateServiceDot();
 		if (this.svcSelectEl) {
 			const k = getServiceKey(this.activeUrl);
@@ -250,14 +257,43 @@ export class AIChatView extends ItemView {
 
 	private populateServiceOptions(): void {
 		if (!this.svcSelectEl) return;
-		this.svcSelectEl.empty();
 		const s = this.plugin.settings;
+		const sig = [
+			...SERVICE_META.filter(m => s[m.enableKey]).map(m => m.key),
+			...s.customServices.map(svc => `${svc.id}:${svc.label}:${svc.url}`),
+		].join("|");
+		if (sig === this.serviceOptionsSig && this.svcSelectEl.options.length > 0) return;
+		this.serviceOptionsSig = sig;
+
+		const previous = this.svcSelectEl.value;
+		this.svcSelectEl.empty();
 		const opt = (val: string, label: string): void => {
 			const o = this.svcSelectEl!.createEl("option", { text: label });
 			o.value = val;
 		};
 		for (const m of SERVICE_META) if (s[m.enableKey]) opt(m.key, m.label);
 		for (const svc of s.customServices) opt(svc.url, svc.label);
+		if (previous && Array.from(this.svcSelectEl.options).some(o => o.value === previous)) {
+			this.svcSelectEl.value = previous;
+		}
+	}
+
+	private populateTemplateOptions(): void {
+		if (!this.templatesSelectEl) return;
+		const templates = this.plugin.settings.promptTemplates;
+		const sig = templates.map(t => `${t.id}:${t.label}`).join("|");
+		if (sig === this.templateOptionsSig && this.templatesSelectEl.options.length > 0) return;
+		this.templateOptionsSig = sig;
+
+		this.templatesSelectEl.empty();
+		const ph = this.templatesSelectEl.createEl("option", { text: "Templates…" });
+		ph.value = "";
+		ph.disabled = true;
+		for (const t of templates) {
+			const o = this.templatesSelectEl.createEl("option", { text: t.label });
+			o.value = t.id;
+		}
+		this.templatesSelectEl.value = "";
 	}
 
 	private buildContextBar(): void {
@@ -267,8 +303,9 @@ export class AIChatView extends ItemView {
 		// ── Left: action buttons ───────────────────────────────
 		const actions = bar.createDiv({ cls: "vc-ctx-actions" });
 
-		const ctxBtn = actions.createEl("button", { cls: "vc-ctx-btn", text: "+ note ▾" });
+		const ctxBtn = actions.createEl("button", { cls: "vc-ctx-btn", text: "Add context" });
 		ctxBtn.title = "Add notes or folders to context";
+		ctxBtn.setAttribute("aria-label", "Add notes or folders to context");
 		ctxBtn.addEventListener("click", (e: MouseEvent) => {
 			const menu = new Menu();
 			menu.addItem(i => i.setTitle("Active note").setIcon("file").onClick(() => this.addActiveFile()));
@@ -281,19 +318,14 @@ export class AIChatView extends ItemView {
 
 		if (s.promptTemplates.length > 0) {
 			const wrap = actions.createDiv({ cls: "vc-select-wrap vc-templates-wrap" });
-			const sel  = wrap.createEl("select", { cls: "vc-templates-select" });
-			sel.setAttribute("aria-label", "Insert a prompt template");
-			const ph = sel.createEl("option", { text: "Templates…" });
-			ph.value = ""; ph.disabled = true;
-			for (const t of s.promptTemplates) {
-				const o = sel.createEl("option", { text: t.label });
-				o.value = t.id;
-			}
-			sel.value = "";
-			sel.addEventListener("change", () => {
-				const tmpl = s.promptTemplates.find(t => t.id === sel.value);
+			this.templatesSelectEl = wrap.createEl("select", { cls: "vc-templates-select" });
+			this.templatesSelectEl.setAttribute("aria-label", "Insert a prompt template");
+			this.templatesSelectEl.title = "Insert a prompt template into the chat";
+			this.populateTemplateOptions();
+			this.templatesSelectEl.addEventListener("change", () => {
+				const tmpl = this.plugin.settings.promptTemplates.find(t => t.id === this.templatesSelectEl?.value);
 				if (tmpl) void this.applyTemplate(tmpl.text);
-				sel.value = "";
+				if (this.templatesSelectEl) this.templatesSelectEl.value = "";
 			});
 			wrap.createSpan({ cls: "vc-select-caret" }).setAttribute("aria-hidden", "true");
 		}
@@ -303,19 +335,22 @@ export class AIChatView extends ItemView {
 
 		this.ctxCountEl = right.createEl("button", { cls: "vc-ctx-count" });
 		this.ctxCountEl.setAttribute("aria-expanded", "false");
+		this.ctxCountEl.setAttribute("aria-label", "Show context items");
 		this.ctxCountEl.addEventListener("click", () => this.toggleContextList());
 
 		this.addBtnEl = right.createEl("button", { cls: "vc-add-btn", text: "Add" });
-		this.addBtnEl.title = "Paste note content into chat";
+		this.addBtnEl.title = "Send context into the active AI chat (clipboard fallback if needed)";
+		this.addBtnEl.setAttribute("aria-label", "Send context into the active AI chat");
 		this.addBtnEl.addEventListener("click", () => void this.handleAddContext());
 
 		this.copyCtxBtnEl = right.createEl("button", { cls: "vc-copy-ctx-btn", text: "Copy" });
-		this.copyCtxBtnEl.title = "Copy note context to clipboard";
+		this.copyCtxBtnEl.title = "Copy context to the clipboard";
+		this.copyCtxBtnEl.setAttribute("aria-label", "Copy context to the clipboard");
 		this.copyCtxBtnEl.addEventListener("click", () => void this.handleCopyContext());
 
 		const saveBtn = right.createEl("button", { cls: "vc-save-btn", text: "Save" });
-		saveBtn.title = "Select the AI text you want to keep, then click to save it to your vault";
-		saveBtn.setAttribute("aria-label", "Save selection to vault");
+		saveBtn.title = "Copy AI text first, then save it to your vault";
+		saveBtn.setAttribute("aria-label", "Save AI response to vault");
 		saveBtn.addEventListener("click", () => void this.saveSelection());
 
 		this.updateContextCount();
@@ -326,8 +361,11 @@ export class AIChatView extends ItemView {
 		this.fallbackEl = null; this.loadingEl = null; this.loadingLabelEl = null;
 		this.svcDotEl = null; this.svcSelectEl = null;
 		this.pipEl = null; this.reloadBtnEl = null;
-		this.ctxCountEl = null; this.addBtnEl = null; this.copyCtxBtnEl = null; this.contextListEl = null;
+		this.ctxCountEl = null; this.addBtnEl = null; this.copyCtxBtnEl = null;
+		this.templatesSelectEl = null; this.contextListEl = null;
 		this.browserShellEl = null; this.nativeUiShellEl = null; this.ollamaChat = null;
+		this.serviceOptionsSig = "";
+		this.templateOptionsSig = "";
 	}
 
 	// ── Webview ───────────────────────────────────────────────
@@ -341,9 +379,8 @@ export class AIChatView extends ItemView {
 		wv.setAttribute("allowpopups",    "");
 		wv.setAttribute("webpreferences", "contextIsolation=yes");
 		
-		// Spoof User-Agent to prevent AI providers from blocking Electron/Obsidian
-		const cleanUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
-		wv.setAttribute("useragent", cleanUserAgent);
+		// Use host OS + Chrome version; strip Electron/Obsidian so sites see a normal browser UA
+		wv.setAttribute("useragent", getCleanUserAgent());
 
 		wv.src = this.activeUrl;
 
@@ -464,8 +501,15 @@ export class AIChatView extends ItemView {
 		}
 
 		if (this.ctxCountEl) {
-			this.ctxCountEl.setText(has ? `${n} ${n === 1 ? "item" : "items"}${charHint} ▾` : "–");
-			this.ctxCountEl.title = has ? `${n} item${n !== 1 ? "s" : ""} — click to view` : "No items in context";
+			this.ctxCountEl.setText(has ? `${n} ▾` : "–");
+			const sizePart = charHint ? charHint.replace(/^ · /, "") : "";
+			this.ctxCountEl.title = has
+				? `${n} item${n !== 1 ? "s" : ""} in context${sizePart ? ` (${sizePart})` : ""} — click to view`
+				: "No items in context";
+			this.ctxCountEl.setAttribute(
+				"aria-label",
+				has ? `Show ${n} context item${n !== 1 ? "s" : ""}` : "No items in context",
+			);
 			if (has) this.ctxCountEl.addClass("has-items");
 			else     this.ctxCountEl.removeClass("has-items");
 			this.ctxCountEl.disabled = !has;

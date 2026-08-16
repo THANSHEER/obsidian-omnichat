@@ -44,10 +44,55 @@ jobs:
               id: get_version
               run: echo "VERSION=$(node -p "require('./manifest.json').version")" >> $GITHUB_ENV
 
-            - name: Create GitHub release
+            - name: Extract release title and notes from CHANGELOG.md
+              id: changelog
+              run: |
+                  SECTION=$(awk -v ver="$VERSION" '
+                      $0 ~ "^## \\[" ver "\\]" { found=1; next }
+                      found && /^## \[/ { exit }
+                      found { print }
+                  ' CHANGELOG.md)
+
+                  if [ -z "$(echo "$SECTION" | tr -d '[:space:]')" ]; then
+                      echo "No CHANGELOG.md entry for $VERSION — falling back to auto-generated notes."
+                      echo "found=false" >> "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+
+                  # The section's "### vX.Y.Z - Title" heading becomes the release title;
+                  # strip it from the body so it isn't duplicated under the title on GitHub.
+                  TITLE=$(echo "$SECTION" | grep -m1 -E "^### v?$VERSION( |$)" | sed -E 's/^### *//')
+                  if [ -z "$TITLE" ]; then
+                      TITLE="v$VERSION"
+                  fi
+                  echo "$SECTION" | sed -E "/^### v?$VERSION( |$)/d" > release_notes.md
+                  printf '\nFull history: [CHANGELOG.md](https://github.com/THANSHEER/obsidian-omnichat/blob/main/CHANGELOG.md)\n' >> release_notes.md
+
+                  echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+                  echo "found=true" >> "$GITHUB_OUTPUT"
+              env:
+                  VERSION: ${{ env.VERSION }}
+
+            - name: Create GitHub release (from CHANGELOG.md)
+              if: steps.changelog.outputs.found == 'true'
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: ${{ env.VERSION }}
+                  name: ${{ steps.changelog.outputs.title }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  files: |
+                      main.js
+                      manifest.json
+                      styles.css
+                  body_path: release_notes.md
+                  make_latest: true
+
+            - name: Create GitHub release (auto-generated notes)
+              if: steps.changelog.outputs.found != 'true'
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ env.VERSION }}
+                  name: v${{ env.VERSION }}
                   token: ${{ secrets.GITHUB_TOKEN }}
                   files: |
                       main.js

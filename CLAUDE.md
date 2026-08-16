@@ -1,17 +1,17 @@
 # CLAUDE.md
 
-This is the single guide for Claude Code (claude.ai/code) and other AI agents working in this repository. Read it before changing the plugin — it documents the current design and the boundaries new code should respect.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this plugin does
 
-OmniChat is a desktop-only Obsidian plugin that embeds AI chat websites in a sidebar using an Electron `<webview>`. It has built-in support for ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, and Kimi, supports custom AI URLs, injects selected text and vault notes as context, and saves AI output back into the vault. No backend — fully local and session-based.
+OmniChat is a desktop-only Obsidian plugin that embeds AI chat websites in a sidebar using an Electron `<webview>`. It has built-in support for ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, Kimi, and Ollama, supports custom AI URLs, injects selected text and vault notes as context, and saves AI output back into the vault. No backend — fully local and session-based (the feedback/forms flow below is the one exception, and it never runs a plugin-side backend).
 
 ## Tech stack
 
 | Concern | Choice |
 |---|---|
 | Plugin framework | Obsidian Plugin API |
-| UI | Imperative DOM in `ItemView` |
+| UI | Imperative DOM in `ItemView` / `Modal` |
 | Language | TypeScript (strict mode) |
 | Build | esbuild |
 | Tests | Vitest (Obsidian API mocked) |
@@ -35,20 +35,30 @@ Run a single test file: `npx vitest run src/path/to/file.test.ts`.
 
 ```text
 src/
-  main.ts              Plugin entry point — lifecycle, view/command registration, settings load/save (with migration)
+  main.ts              Plugin entry point — lifecycle, view/command registration, settings load/save
+                        (with migration), uninstall-feedback patch, welcome/update modal orchestration
   settings.ts          DockSettings interface, DEFAULT_SETTINGS, AIChatSettingTab
   constants.ts         URL constants + the SERVICE_META registry (single source of truth);
                        SERVICE_URLS, ServiceKey, and ServiceEnableKey are derived from it
   utils.ts             URL normalization, service detection (getServiceKey), context building, frontmatter stripping
   commands/index.ts    registerCommands() only — keep handlers thin, delegate to main.ts methods
+  feedback/
+    constants.ts       Geekstash Forms site URLs (productFormSiteUrl) — hosted forms, opened in the browser
+    github.ts          Fetch/format GitHub release notes for the update-notes modal
   views/
     AIChatView.ts      ItemView owning the webview, toolbar, service selector, context list,
                        prompt templates, split-panel behavior, and save actions
+    OllamaChatUI.ts    Native chat UI for the local Ollama service (not webview-based)
   modals/
     ContextSearchModal.ts    Search notes by name or content (add to context)
     FilePickerModal.ts       Fuzzy note picker (used by SaveDestinationModal's "append to existing")
     FolderPickerModal.ts     Folder picker (add a folder to context)
     SaveDestinationModal.ts  Save AI output as a new note or append to an existing one
+    WelcomeModal.ts          First-run onboarding tour (shown once, lastSeenVersion empty on first install)
+    UpdateNotesModal.ts      Changelog modal shown after a version bump (uses feedback/github.ts)
+    FeedbackModal.ts         Opens the hosted feedback form in the browser
+    FeatureRequestModal.ts   Opens the hosted feature-request form in the browser
+    UninstallFeedbackModal.ts  Opens the hosted uninstall survey in the browser
 ```
 
 ## Data flow
@@ -70,6 +80,16 @@ Click Add
 
 Click Save
   → clipboard text is captured → SaveDestinationModal writes a new note or appends to one
+
+Install / update
+  → onLayoutReady calls showInstallOrUpdateModal()
+  → first install (no lastSeenVersion) → WelcomeModal, lastSeenVersion set silently otherwise
+  → version bump → fetchReleaseNotes() → UpdateNotesModal
+
+Uninstall
+  → main.ts monkey-patches app.plugins.uninstallPlugin (no public onUninstall hook exists)
+  → intercept fires only for this plugin's id → UninstallFeedbackModal → original uninstallPlugin
+  → patch is restored in onunload so a mere disable never leaves it dangling
 ```
 
 ## Key design constraints
@@ -78,9 +98,10 @@ Click Save
 - **Injection is best-effort.** `webview.executeJavaScript()` targets third-party chat DOMs that can change; the clipboard write is the mandatory fallback.
 - **Persistence lives in `DockSettings`.** Context items, service toggles, templates, custom services, and save-folder preferences are stored via `plugin.saveData()`. Context items are the single source of truth — views re-sync from settings on render so split panels stay consistent.
 - **Desktop only.** Do not add mobile compatibility layers.
-- **No backend.** Local and session-based; do not add a remote service or server dependency.
+- **No backend, no direct API calls to Geekstash.** Feedback/feature-request/uninstall surveys must never call `api.geekstash.dev` or embed Turnstile inside the plugin — always open the hosted form via `productFormSiteUrl()` (`src/feedback/constants.ts`) in the user's default browser (`window.open(...)`).
 - **No `innerHTML`.** Build DOM imperatively with `createEl` / `createElement`.
 - **Avoid** bundled credentials or API keys, and any file access outside `app.vault`.
+- **Sentence-case UI text.** `eslint-plugin-obsidianmd`'s `sentence-case` rule is enforced; the brand allowlist in `eslint.config.mts` (`SENTENCE_CASE_BRANDS`) must be kept in sync with `eslint-plugin-obsidianmd`'s defaults plus this plugin's AI service names.
 
 ## Adding a new built-in AI service
 
@@ -89,6 +110,7 @@ Built-in services are defined once in `SERVICE_META` (`src/constants.ts`); the U
 1. Add a row to `SERVICE_META` in `src/constants.ts` (`key`, `label`, `url`, `hosts`, `enableKey`).
 2. Add the `enable<Service>` flag to the `ServiceEnableKey` union (`src/constants.ts`) and to `DockSettings` + `DEFAULT_SETTINGS` in `src/settings.ts`.
 3. Add the `.vc-svc-dot--<key>` color rule in `styles.css`.
+4. If the brand name isn't sentence-case-safe by default, add it to `SENTENCE_CASE_BRANDS` in `eslint.config.mts`.
 
 ## Adding a new setting
 
@@ -103,11 +125,11 @@ Built-in services are defined once in `SERVICE_META` (`src/constants.ts`); the U
 
 ## Testing
 
-Tests live alongside source files as `*.test.ts`. The Obsidian API is stubbed via `__mocks__/obsidian.ts` — the alias is configured in `vitest.config.ts`.
+Tests live alongside source files in `src/__tests__/*.test.ts`. The Obsidian API is stubbed via `__mocks__/obsidian.ts` — the alias is configured in `vitest.config.ts`.
 
 ## Releasing
 
 1. Update version in `package.json`.
 2. `npm run version` — updates `manifest.json` and `versions.json`.
 3. `npm run build`.
-4. Commit, tag, push, create a GitHub release attaching `main.js`, `manifest.json`, and `styles.css`.
+4. Commit, tag, push, create a GitHub release attaching `main.js`, `manifest.json`, and `styles.css`. The release's tag (`vX.Y.Z` or `X.Y.Z`) and body are what `UpdateNotesModal` fetches and displays to existing users on their next launch.
