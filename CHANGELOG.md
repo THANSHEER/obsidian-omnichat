@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to OmniChat are documented in this file. Entries follow the format described in `CLAUDE.md` under "Release note style" and are written for end users, not developers.
+All notable changes to OmniChat are documented in this file. Entries follow the format described in `GUIDE.md` under "Use This Format" and are written for end users, not developers.
 
 ## [1.6.0] - 2026-08-16
 
@@ -8,20 +8,20 @@ All notable changes to OmniChat are documented in this file. Entries follow the 
 
 A new way to tell us what's working (or not), a friendlier first run, and a heads-up on what changed after every update.
 
-**New**
+### Features
 
 - Added a Feedback section in settings to send general feedback, request a feature, or share uninstall feedback anytime
 - Added an optional survey when you uninstall OmniChat (not shown when you only disable it)
 - Added a short welcome tour the first time you open OmniChat
 - OmniChat now shows what's new after updating to a new version
 
-**Better**
+### Improvements
 
 - OmniChat now presents itself to AI sites using your actual operating system and browser version for more reliable sign-ins
 - Added screen reader labels to the context toolbar buttons
 - Context and template menus feel snappier
 
-**Fixed**
+### Fixes
 
 - Fixed the service selector occasionally losing your selection when settings changed
 
@@ -37,7 +37,7 @@ No breaking changes.
 
 Small fixes to keep the sidebar running smoothly.
 
-**Fixed**
+### Fixes
 
 - Fixed the AI panel and Ollama sometimes sharing the same view unexpectedly
 - Improved overall stability and security
@@ -54,7 +54,7 @@ No breaking changes.
 
 You can now chat with your local Ollama models right alongside the other AI services.
 
-**New**
+### Features
 
 - Built-in support for Ollama, with its own dedicated view
 - Added a setting to customize the Ollama API URL, for remote or custom-port setups
@@ -71,14 +71,14 @@ No breaking changes.
 
 Saving AI responses to your notes is now easier and cleaner.
 
-**New**
+### Features
 
 - AI responses can automatically clean up into proper tables and code blocks when saved
 - Insert an AI response directly at your cursor as a new save option
 - Saved notes now record which AI service and date they came from
 - Save the current AI response from the command palette
 
-**Better**
+### Improvements
 
 - Searching notes for context now loads faster
 
@@ -94,17 +94,17 @@ No breaking changes.
 
 Prompt templates got smarter, and clearing your context is now harder to do by accident.
 
-**New**
+### Features
 
 - Two new template variables to auto-insert a note's path or its tags
 - Clear all context straight from the command palette
 - Choose which AI service opens by default in the split panel
 
-**Better**
+### Improvements
 
 - Clearing all context now asks for confirmation first, so you don't lose your list by accident
 
-**Fixed**
+### Fixes
 
 - Fixed duplicate custom services being added silently
 - Fixed saved files overwriting each other when saved quickly in a row
@@ -124,7 +124,7 @@ No breaking changes.
 
 Small reliability improvements to how AI services are handled.
 
-**Fixed**
+### Fixes
 
 - Improved reliability when switching between AI services
 
@@ -140,14 +140,17 @@ No breaking changes.
 
 The plugin is now officially called OmniChat everywhere you see it.
 
-**Better**
+### Improvements
 
 - Renamed from "AI Portal" to "OmniChat" throughout the plugin
 
-**Fixed**
+### Fixes
 
 - Fixed leftover "AI Portal" text in the ribbon icon and notifications
 - Fixed a naming mismatch that caused a warning in the Obsidian plugin store
+
+### Security
+
 - Resolved underlying security vulnerabilities in the plugin's build tools
 
 ---
@@ -162,7 +165,7 @@ No breaking changes.
 
 One of the biggest updates yet: one-click prompts, a side-by-side view, and finer control over what you send as context.
 
-**New**
+### Features
 
 - One-click prompt templates you can trigger from settings
 - Open two AI services at once with the new split panel
@@ -174,11 +177,11 @@ One of the biggest updates yet: one-click prompts, a side-by-side view, and fine
 - Set a maximum size limit for context sends
 - Cycle through your enabled AI services with a command (assignable to a hotkey)
 
-**Better**
+### Improvements
 
 - Smaller, faster plugin after trimming extra dependencies
 
-**Fixed**
+### Security
 
 - Fixed a security issue that could let unsafe web addresses load in the panel
 
@@ -194,7 +197,7 @@ No breaking changes.
 
 The AI panel now properly fills the sidebar again.
 
-**Fixed**
+### Fixes
 
 - Fixed the AI panel collapsing into a small box instead of filling the sidebar
 - Removed extra empty space above the service selector
@@ -211,7 +214,7 @@ No breaking changes.
 
 Continued layout cleanup for the sidebar.
 
-**Fixed**
+### Fixes
 
 - Fixed remaining spacing and alignment issues in the sidebar
 
@@ -227,12 +230,12 @@ No breaking changes.
 
 Cleaned up layout problems that appeared after the first release.
 
-**New**
+### Features
 
 - Right-click context menu support
 - A command to toggle the AI panel on and off
 
-**Fixed**
+### Fixes
 
 - Fixed the AI panel not filling the full sidebar height
 - Fixed toolbar buttons stacking vertically instead of staying in a row
@@ -249,7 +252,7 @@ No breaking changes.
 
 Bring your favorite AI chat sites into Obsidian's sidebar, and send your notes straight into them without leaving the app.
 
-**New**
+### Features
 
 - Chat with ChatGPT, Claude, DeepSeek, Perplexity, Gemini, or Grok, each toggled on or off individually
 - Send selected text to your AI with one command

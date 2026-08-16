@@ -66,7 +66,6 @@ jobs:
                       TITLE="v$VERSION"
                   fi
                   echo "$SECTION" | sed -E "/^### v?$VERSION( |$)/d" > release_notes.md
-                  printf '\nFull history: [CHANGELOG.md](https://github.com/THANSHEER/obsidian-omnichat/blob/main/CHANGELOG.md)\n' >> release_notes.md
 
                   echo "title=$TITLE" >> "$GITHUB_OUTPUT"
                   echo "found=true" >> "$GITHUB_OUTPUT"
