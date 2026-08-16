@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { SERVICE_META, SERVICE_URLS, ServiceKey } from "./constants";
 
 export function stripFrontmatterContent(content: string): string {
@@ -249,4 +250,33 @@ export function formatAIResponseText(text: string): string {
 	return segments
 		.map(seg => (seg.type === "fence" ? seg.content : wrapCodeLikeParagraphs(reformatTables(seg.content))))
 		.join("\n");
+}
+
+/**
+ * Browser-like User-Agent for the embedded webview.
+ * Keeps the host OS (Windows / macOS / Linux) and Chrome version from Obsidian's
+ * Chromium, but strips Electron/Obsidian tokens that AI sites use to block embeds.
+ */
+export function getCleanUserAgent(ua: string = ""): string {
+	// navigator.userAgent is only used for Chrome version / spoofing the webview UA —
+	// OS detection uses Platform below (required by eslint-plugin-obsidianmd).
+	// eslint-disable-next-line obsidianmd/platform -- need Chromium UA string, not OS detection
+	const hostUa = ua || (typeof navigator !== "undefined" ? navigator.userAgent : "");
+	const cleaned = hostUa
+		.replace(/\s*Electron\/[\d.]+/gi, "")
+		.replace(/\s*obsidian\/[\d.]+/gi, "")
+		.replace(/\s+/g, " ")
+		.trim();
+
+	if (/Mozilla\/5\.0/.test(cleaned) && /Chrome\/[\d.]+/.test(cleaned)) {
+		return cleaned;
+	}
+
+	const osToken = Platform.isWin
+		? "Windows NT 10.0; Win64; x64"
+		: Platform.isLinux
+			? "X11; Linux x86_64"
+			: "Macintosh; Intel Mac OS X 10_15_7";
+	const chromeVer = hostUa.match(/Chrome\/([\d.]+)/)?.[1] ?? "125.0.0.0";
+	return `Mozilla/5.0 (${osToken}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVer} Safari/537.36`;
 }

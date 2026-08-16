@@ -14,8 +14,8 @@ This guide covers local setup, build commands, testing, and release workflow for
 ## Initial setup
 
 ```bash
-git clone https://github.com/THANSHEER/AI-Browser-Chat
-cd AI-Browser-Chat
+git clone https://github.com/THANSHEER/obsidian-omnichat
+cd obsidian-omnichat
 npm install
 ```
 

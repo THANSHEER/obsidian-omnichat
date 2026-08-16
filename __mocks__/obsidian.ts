@@ -66,6 +66,41 @@ export class Notice {
 	constructor(public message: string, public timeout?: number) {}
 }
 
+export class Modal {
+	app: App;
+	contentEl: any = {
+		empty: (): void => {},
+		addClass: (_cls: string): void => {},
+		createEl: (_tag: string, _opts?: unknown): any => ({
+			addEventListener: () => {},
+			setAttr: () => {},
+		}),
+		createDiv: (_opts?: unknown): any => ({
+			createEl: () => ({ addEventListener: () => {}, setAttr: () => {} }),
+			hide: () => {},
+			show: () => {},
+			setText: () => {},
+		}),
+	};
+	constructor(app: App) { this.app = app; }
+	open(): void {}
+	close(): void {}
+	onOpen(): void {}
+	onClose(): void {}
+}
+
+export async function requestUrl(_opts: unknown): Promise<{ status: number; text: string }> {
+	return { status: 404, text: "" };
+}
+
+export const Platform = {
+	isWin: false,
+	isMacOS: true,
+	isLinux: false,
+	isDesktopApp: true,
+	isMobileApp: false,
+};
+
 export class WorkspaceLeaf {
 	view: any = null;
 	setViewState(_state: unknown): Promise<void> { return Promise.resolve(); }

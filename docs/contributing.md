@@ -13,8 +13,8 @@ Thank you for contributing to OmniChat.
 ### 1. Fork and branch
 
 ```bash
-git clone https://github.com/<your-username>/AI-Browser-Chat.git
-cd AI-Browser-Chat
+git clone https://github.com/<your-username>/obsidian-omnichat.git
+cd obsidian-omnichat
 git checkout -b feat/your-feature-name
 ```
 

@@ -97,6 +97,7 @@ describe("DEFAULT_SETTINGS", () => {
 			"formatAIResponse",
 			"customServices",
 			"splitPanelUrl",
+			"lastSeenVersion",
 		];
 		for (const key of requiredKeys) {
 			expect(Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)).toBe(true);
@@ -105,5 +106,9 @@ describe("DEFAULT_SETTINGS", () => {
 
 	it("has formatAIResponse set to true", () => {
 		expect(DEFAULT_SETTINGS.formatAIResponse).toBe(true);
+	});
+
+	it("starts with empty lastSeenVersion until first load", () => {
+		expect(DEFAULT_SETTINGS.lastSeenVersion).toBe("");
 	});
 });

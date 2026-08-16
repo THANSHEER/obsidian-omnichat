@@ -10,6 +10,7 @@ import {
 	wrapCodeLikeParagraphs,
 	guessLanguage,
 	formatAIResponseText,
+	getCleanUserAgent,
 } from "../utils";
 import { SERVICE_URLS } from "../constants";
 
@@ -347,5 +348,40 @@ describe("formatAIResponseText", () => {
 	it("does not alter plain prose with no code or table structure", () => {
 		const input = "Just a normal paragraph of plain English text.\nNothing here looks like code or a table.";
 		expect(formatAIResponseText(input)).toBe(input);
+	});
+});
+
+// ── getCleanUserAgent ─────────────────────────────────────────────────────────
+
+describe("getCleanUserAgent", () => {
+	it("keeps Windows OS and Chrome version while stripping Electron/Obsidian", () => {
+		const input =
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.91 Electron/33.2.0 obsidian/1.8.0 Safari/537.36";
+		const out = getCleanUserAgent(input);
+		expect(out).toContain("Windows NT 10.0; Win64; x64");
+		expect(out).toContain("Chrome/130.0.6723.91");
+		expect(out).not.toMatch(/Electron/i);
+		expect(out).not.toMatch(/obsidian/i);
+	});
+
+	it("keeps macOS OS token from the host UA", () => {
+		const input =
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.84 Electron/31.0.0 Safari/537.36";
+		const out = getCleanUserAgent(input);
+		expect(out).toContain("Macintosh; Intel Mac OS X 10_15_7");
+		expect(out).toContain("Chrome/128.0.6613.84");
+		expect(out).not.toMatch(/Electron/i);
+	});
+
+	it("keeps Linux OS token from the host UA", () => {
+		const input =
+			"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Electron/32.0.0 Safari/537.36";
+		expect(getCleanUserAgent(input)).toContain("X11; Linux x86_64");
+	});
+
+	it("falls back to a Platform-based Chrome UA when host UA is unusable", () => {
+		// Platform mock defaults to macOS.
+		expect(getCleanUserAgent("")).toContain("Macintosh; Intel Mac OS X");
+		expect(getCleanUserAgent("")).toContain("Chrome/125.0.0.0");
 	});
 });

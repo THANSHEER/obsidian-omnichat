@@ -4,10 +4,15 @@ OmniChat is a local Obsidian plugin. This policy explains what the plugin stores
 
 ## What OmniChat does not do
 
-- It does not run a backend service.
-- It does not send telemetry to the author.
-- It does not collect analytics.
+- It does not send telemetry or analytics by default.
 - It does not store API keys.
+- Optional feedback you choose to submit (see below) is the only author-operated network call.
+
+## Optional feedback
+
+If you use **General feedback**, **Request a feature**, or **Uninstall feedback** in settings (or the post-update “Give feedback” button), the plugin sends only what you typed — plus a Cloudflare Turnstile bot-check token — to `https://api.geekstash.dev` for the OmniChat product. Nothing is sent unless you submit a form.
+
+Uninstalling the plugin (not merely disabling it) may open an optional in-app feedback form. The first-install welcome and update changelog modals stay local — they do not send data.
 
 ## What OmniChat stores locally
 
@@ -33,6 +38,7 @@ This can include:
 - custom service URLs
 - save-folder configuration
 - theme and startup preferences
+- last seen plugin version (to show first-install welcome once, and update changelog when the version changes)
 
 ## Vault file access
 
@@ -60,4 +66,4 @@ That means the privacy policy of the active AI provider applies to anything you 
 
 ## Source transparency
 
-The source is public at [THANSHEER/AI-Browser-Chat](https://github.com/THANSHEER/AI-Browser-Chat).
+The source is public at [THANSHEER/obsidian-omnichat](https://github.com/THANSHEER/obsidian-omnichat).

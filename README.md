@@ -26,24 +26,22 @@
   </a>
 </p>
 
-
-
-## ✨ Why OmniChat?
+## Why OmniChat?
 
 OmniChat is a powerful desktop-only Obsidian plugin that embeds AI chat websites in a persistent sidebar. It allows you to seamlessly send selected text, inject vault context into your active chat, and save responses back into your Obsidian vault—all without leaving your workflow.
 
-- 🌐 **10 Built-in Services:** Switch instantly between ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, Kimi, and Ollama from a single panel.
-- 🔗 **Bring Your Own AI:** Add custom AI tools by URL and keep them within the same quick selector.
-- 💬 **Send Selection:** Send selected editor text straight into the active chat with a single click.
-- 📚 **Build Context:** Build reusable vault context from your notes, open tabs, or full folders, then inject it instantly.
-- 📝 **Prompt Templates:** Streamline repeated workflows with custom prompt templates.
-- 🪟 **Split View:** Open a second split panel to keep two AI services visible side by side.
-- 💾 **Save Responses:** Copy text in the AI page (Cmd+C / Ctrl+C) and click **Save** to securely store responses in your vault.
-- 🔄 **Persistent Sessions:** Keep all your chats logged in and active across Obsidian restarts.
+- **10 Built-in Services:** Switch instantly between ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, Kimi, and Ollama from a single panel.
+- **Bring Your Own AI:** Add custom AI tools by URL and keep them within the same quick selector.
+- **Send Selection:** Send selected editor text straight into the active chat with a single click.
+- **Build Context:** Build reusable vault context from your notes, open tabs, or full folders, then inject it instantly.
+- **Prompt Templates:** Streamline repeated workflows with custom prompt templates.
+- **Split View:** Open a second split panel to keep two AI services visible side by side.
+- **Save Responses:** Copy text in the AI page (Cmd+C / Ctrl+C) and click Save to securely store responses in your vault.
+- **Persistent Sessions:** Keep all your chats logged in and active across Obsidian restarts.
 
 ---
 
-## 📸 Features in Action
+## Features in Action
 
 ### Service Switching
 Switch seamlessly between different AI models and add your own custom URLs.
@@ -63,10 +61,9 @@ Collect context from specific folders or notes and inject them straight into the
   <img src="https://raw.githubusercontent.com/THANSHEER/media-hub/main/obsidian-omnichat/animated-webp/Build%20context%20%E2%86%92%20inject.webp" alt="Build Context" width="760">
 </p>
 
-
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [x] Embed major AI services (ChatGPT, Claude, Gemini, Perplexity, DeepSeek, etc.)
 - [x] Quick service switching menu
@@ -84,13 +81,13 @@ Collect context from specific folders or notes and inject them straight into the
 
 ---
 
-## 📥 Installation
+## Installation
 
 See [docs/installation.md](docs/installation.md) for full instructions on installing via the Obsidian Community Store, manual installation, or using BRAT.
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 | Guide | Description |
 |---|---|
@@ -102,19 +99,19 @@ See [docs/installation.md](docs/installation.md) for full instructions on instal
 
 ---
 
-## 🔒 Privacy
+## Privacy
 
-OmniChat does **not** run a backend server and does **not** collect telemetry or user data. Everything runs locally within your Obsidian environment. See our full [Privacy Policy](PRIVACY.md).
+OmniChat does **not** run a backend server and does **not** collect telemetry or user data. Everything runs locally within your Obsidian environment. See our full [Privacy Policy](https://geekstash.dev/omnichat/privacy).
 
-## 🤝 Support
+## Support
 
-If you find this plugin helpful, please consider leaving a star on GitHub!  
-⭐ [THANSHEER/obsidian-omnichat](https://github.com/THANSHEER/obsidian-omnichat)
+If you find this plugin helpful, please consider leaving a star on GitHub.
+[THANSHEER/obsidian-omnichat](https://github.com/THANSHEER/obsidian-omnichat)
 
-## ⚠️ Disclaimer
+## Disclaimer
 
-OmniChat is an independent community plugin and is **not** affiliated with OpenAI, Anthropic, Google, Microsoft, xAI, DeepSeek, Moonshot AI, Perplexity, or Obsidian.
+OmniChat is an independent plugin and is **not** affiliated with OpenAI, Anthropic, Google, Microsoft, xAI, DeepSeek, Moonshot AI, Perplexity, or Obsidian.
 
-## 📄 License
+## License
 
 Apache 2.0 License. See [LICENSE.txt](LICENSE.txt) for details.
