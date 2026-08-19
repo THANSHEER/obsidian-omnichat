@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
     ci:
-        name: Automated Obsidian Checks & CI
+        name: ciExpected
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
