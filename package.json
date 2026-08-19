@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-omnichat",
-	"version": "1.7.0",
+	"version": "1.7.1",
 	"description": "Obsidian plugin — OmniChat embeds any AI service (ChatGPT, Claude, Gemini, Grok, DeepSeek and more) in a sidebar and injects vault notes as context.",
 	"main": "main.js",
 	"type": "module",
@@ -8,7 +8,9 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"lint": "eslint .",
+		"lint": "eslint . --max-warnings=0",
+		"validate": "node scripts/validate-obsidian.mjs",
+		"check": "npm run lint && tsc --noEmit --skipLibCheck && npm test && npm run build && npm run validate",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},

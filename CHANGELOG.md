@@ -2,6 +2,23 @@
 
 All notable changes to OmniChat are documented in this file. Entries follow the format described in `GUIDE.md` under "Use This Format" and are written for end users, not developers.
 
+## [1.7.1] - 2026-08-19
+
+### v1.7.1 - Maintenance & Quality Improvements
+
+Quality improvements and automated validation to ensure smooth community releases.
+
+### Improvements
+
+- Added automated Obsidian manifest, security, and release asset validation
+- Enhanced continuous integration workflows across all branches
+
+---
+
+**How to Update:** Install from Obsidian Community Plugins.
+
+No breaking changes.
+
 ## [1.7.0] - 2026-08-19
 
 ### v1.7.0 - Open Source License Update
