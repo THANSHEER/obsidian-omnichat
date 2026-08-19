@@ -2,6 +2,22 @@
 
 All notable changes to OmniChat are documented in this file. Entries follow the format described in `GUIDE.md` under "Use This Format" and are written for end users, not developers.
 
+## [1.7.0] - 2026-08-19
+
+### v1.7.0 - Open Source License Update
+
+OmniChat is now officially licensed under the MIT License.
+
+### Improvements
+
+- Updated the repository license from Apache 2.0 to MIT for simpler and broader open-source use
+
+---
+
+**How to Update:** Install from Obsidian Community Plugins.
+
+No breaking changes.
+
 ## [1.6.0] - 2026-08-16
 
 ### v1.6.0 - Feedback, Onboarding, and Update Notes
