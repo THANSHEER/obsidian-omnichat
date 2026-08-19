@@ -28,6 +28,8 @@ const SENTENCE_CASE_BRANDS = [
 	// AI services used by this plugin
 	"ChatGPT", "Claude", "DeepSeek", "Perplexity", "Gemini", "Grok",
 	"Copilot", "Manus AI", "Kimi", "Google", "xAI", "OmniChat",
+	// Donation / Sponsor brands
+	"Ko-fi", "Buy Me a Coffee",
 ];
 
 export default tseslint.config(
@@ -68,6 +70,7 @@ export default tseslint.config(
 		"versions.json",
 		"main.js",
 		"package.json",
+		"scripts/**",
 		// Test infrastructure — not part of the plugin source
 		"__mocks__/**",
 		"src/__tests__/**",

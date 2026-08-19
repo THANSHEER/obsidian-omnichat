@@ -29,8 +29,20 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            - name: Build
+            - name: 🔍 Run Obsidian Linter & Security Checks
+              run: npm run lint
+
+            - name: 🔍 TypeScript Type-Check
+              run: npx tsc --noEmit --skipLibCheck
+
+            - name: 🧪 Run Unit Tests
+              run: npm test
+
+            - name: 🔨 Build Release Assets
               run: npm run build
+
+            - name: 🛡️ Validate Manifest & Release Artifacts for Obsidian
+              run: node scripts/validate-obsidian.mjs
 
             - name: Attest artifacts
               uses: actions/attest-build-provenance@v2

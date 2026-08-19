@@ -378,6 +378,15 @@ export class AIChatSettingTab extends PluginSettingTab {
 				}),
 			);
 
+		new Setting(containerEl)
+			.setName("Support on Ko-fi")
+			.setDesc("If you find OmniChat helpful, support ongoing development.")
+			.addButton(btn =>
+				btn.setButtonText("Support on Ko-fi").onClick(() => {
+					window.open("https://ko-fi.com/thansheer", "_blank");
+				}),
+			);
+
 		// ── Custom services ───────────────────────────────────
 		new Setting(containerEl).setName("Custom services").setHeading();
 

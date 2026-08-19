@@ -105,8 +105,11 @@ OmniChat does **not** run a backend server and does **not** collect telemetry or
 
 ## Support
 
-If you find this plugin helpful, please consider leaving a star on GitHub.
-[THANSHEER/obsidian-omnichat](https://github.com/THANSHEER/obsidian-omnichat)
+If you find this plugin helpful, consider supporting its development:
+
+[![Buy Me a Coffee at ko-fi.com](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/thansheer)
+
+Or leave a star on [GitHub](https://github.com/THANSHEER/obsidian-omnichat).
 
 ## Disclaimer
 
