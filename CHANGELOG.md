@@ -2,6 +2,23 @@
 
 All notable changes to OmniChat are documented in this file. Entries follow the format described in `GUIDE.md` under "Use This Format" and are written for end users, not developers.
 
+## [1.7.2] - 2026-08-20
+
+### v1.7.2 - Review & Linter Compliance
+
+Fixes and improvements to meet Obsidian community plugin review guidelines.
+
+### Fixes
+
+- Replaced element creation helper with `createSpan` in the welcome modal to adhere to Obsidian DOM conventions
+- Removed rule disable comment and updated webview User-Agent detection to conform with Obsidian platform review checks
+
+---
+
+**How to Update:** Install from Obsidian Community Plugins.
+
+No breaking changes.
+
 ## [1.7.1] - 2026-08-19
 
 ### v1.7.1 - Maintenance & Quality Improvements

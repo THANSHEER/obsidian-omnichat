@@ -60,6 +60,26 @@ export class Setting {
 		_cb({ setPlaceholder: () => ({ setValue: () => ({ onChange: () => {} }) }) });
 		return this;
 	}
+	addButton(_cb: (b: any) => void): this {
+		_cb({
+			setButtonText: () => ({ setCta: () => ({ onClick: () => {} }), setTooltip: () => ({ onClick: () => {} }), onClick: () => {} }),
+			setIcon: () => ({ setTooltip: () => ({ onClick: () => {} }), onClick: () => {} }),
+			setTooltip: () => ({ onClick: () => {} }),
+			setCta: () => ({ onClick: () => {} }),
+			onClick: () => ({}),
+			buttonEl: { addClass: () => {}, removeClass: () => {} },
+		});
+		return this;
+	}
+	addExtraButton(_cb: (b: any) => void): this {
+		_cb({
+			setIcon: () => ({ setTooltip: () => ({ onClick: () => {} }), onClick: () => {} }),
+			setTooltip: () => ({ onClick: () => {} }),
+			onClick: () => ({}),
+			extraSettingsEl: { addClass: () => {}, removeClass: () => {} },
+		});
+		return this;
+	}
 }
 
 export class Notice {
