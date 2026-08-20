@@ -298,6 +298,20 @@
 	font-size: var(--font-ui-small);
 }
 
+/* ── Modal logo ───────────────────────────────────────────── */
+
+.oc-modal-logo-wrap {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 12px;
+}
+
+.oc-modal-logo {
+	border-radius: 18px;
+	box-shadow: 0 4px 18px rgba(131, 94, 238, 0.35), 0 1px 4px rgba(0,0,0,0.18);
+	display: block;
+}
+
 /* ── First-install welcome / onboarding ───────────────────── */
 
 .oc-welcome-modal-el {
@@ -384,6 +398,91 @@
 	border-left: 3px solid var(--interactive-accent);
 	background: var(--background-secondary);
 	border-radius: 0 var(--radius-s, 6px) var(--radius-s, 6px) 0;
+}
+
+/* ── Uninstall modal — highlighted feedback link ─────────── */
+
+.oc-uninstall-feedback-link {
+	color: var(--interactive-accent) !important;
+	font-weight: 600;
+	text-decoration: underline !important;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+.oc-uninstall-feedback-link:hover {
+	color: var(--interactive-accent-hover) !important;
+	text-decoration: underline !important;
+}
+
+/* ── Update modal — multi-button actions row ─────────────── */
+
+.oc-update-actions {
+	flex-wrap: wrap;
+	gap: 6px;
+	justify-content: flex-end;
+}
+
+/* ── GitHub issue modal cards ────────────────────────────── */
+
+.oc-issue-modal {
+	max-width: min(360px, calc(100vw - 32px));
+}
+
+.oc-issue-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
+.oc-issue-card {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 14px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s, 6px);
+	cursor: pointer;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.oc-issue-card:hover {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.oc-issue-card-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	background: var(--background-modifier-hover);
+	color: var(--interactive-accent);
+}
+
+.oc-issue-card-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.oc-issue-card-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.oc-issue-card-text strong {
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+.oc-issue-card-text span {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
 }
 
 /* ── Row 2: Context bar ──────────────────────────────────── */
@@ -1173,3 +1272,107 @@
 	color: var(--text-faint);
 	margin-top: 8px;
 }
+
+/* ── Support Banner (top of settings) ──────────────────── */
+
+.oc-support-banner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 14px;
+	padding: 16px 16px 14px;
+	margin-bottom: 20px;
+	border-radius: 10px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.oc-support-banner-btns {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
+/* Shared button base */
+.oc-support-banner-btn {
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 8px !important;
+	padding: 8px 18px 8px 12px !important;
+	border-radius: 9999px !important;
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	line-height: 1 !important;
+	text-decoration: none !important;
+	cursor: pointer;
+	transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+	border: 1px solid var(--background-modifier-border) !important;
+	background: var(--background-secondary) !important;
+	color: var(--text-normal) !important;
+	white-space: nowrap;
+}
+
+.oc-support-banner-btn:hover {
+	background: var(--background-modifier-hover) !important;
+	border-color: var(--interactive-accent) !important;
+	color: var(--text-normal) !important;
+	text-decoration: none !important;
+	transform: translateY(-1px);
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+}
+
+.oc-support-banner-btn:active {
+	transform: translateY(0) scale(0.97);
+}
+
+.oc-kofi-icon {
+	flex-shrink: 0;
+	display: block;
+}
+
+/* GitHub Sponsors — pink heart icon */
+.oc-support-github-btn svg {
+	color: #ea4aaa !important;
+	fill: #ea4aaa !important;
+	flex-shrink: 0;
+}
+
+/* ── Banner divider ─────────────────────────────────────── */
+
+.oc-support-banner-divider {
+	width: 100%;
+	height: 1px;
+	background: var(--background-modifier-border);
+}
+
+/* ── Feedback text-link row ─────────────────────────────── */
+
+.oc-support-banner-links {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	justify-content: center;
+}
+
+.oc-support-text-link {
+	font-size: var(--font-ui-small);
+	color: var(--text-muted) !important;
+	text-decoration: none !important;
+	cursor: pointer;
+	transition: color 0.15s ease;
+}
+
+.oc-support-text-link:hover {
+	color: var(--interactive-accent) !important;
+	text-decoration: none !important;
+}
+
+.oc-support-link-sep {
+	color: var(--text-faint);
+	font-size: var(--font-ui-small);
+	user-select: none;
+}
+

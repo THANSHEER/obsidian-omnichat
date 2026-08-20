@@ -2,10 +2,10 @@ import { App, Modal } from "obsidian";
 import { productFormSiteUrl } from "../feedback/constants";
 
 /**
- * Optional uninstall survey. Shown when the user uninstalls OmniChat
- * (not when they only disable it), or from Settings. The survey itself is
- * collected on the Geekstash website, not inside the plugin (see CLAUDE.md —
- * plugins must not call the Worker API or embed Turnstile).
+ * Uninstall notice. Shown when the user uninstalls OmniChat
+ * (not when they only disable it). No longer shown from Settings.
+ * The survey link opens in the browser — plugins must not call the
+ * Worker API or embed Turnstile (see CLAUDE.md).
  */
 export class UninstallFeedbackModal extends Modal {
 	private onDone: (() => void) | null;
@@ -22,20 +22,27 @@ export class UninstallFeedbackModal extends Modal {
 		contentEl.addClass("oc-uninstall-modal");
 
 		contentEl.createEl("h2", { text: "Leaving OmniChat?" });
-		contentEl.createEl("p", {
-			text: "Sorry to see you go. If you have a moment, the uninstall survey opens in your browser — it helps us improve. You can skip this.",
-			cls: "oc-feedback-lead",
+
+		const lead = contentEl.createEl("p", { cls: "oc-feedback-lead oc-uninstall-lead" });
+		lead.appendText("Sorry to see you go. If you have a moment, please ");
+
+		const link = lead.createEl("a", {
+			text: "Share your feedback",
+			href: productFormSiteUrl("uninstall"),
+			cls: "oc-uninstall-feedback-link",
 		});
+		link.setAttr("target", "_blank");
+		link.setAttr("rel", "noopener noreferrer");
+		link.addEventListener("click", (e) => {
+			e.preventDefault();
+			window.open(productFormSiteUrl("uninstall"), "_blank");
+		});
+
+		lead.appendText(" — it helps us improve. You can skip this.");
 
 		const actions = contentEl.createDiv({ cls: "oc-feedback-actions" });
-		const skipBtn = actions.createEl("button", { text: "Skip" });
+		const skipBtn = actions.createEl("button", { text: "Close", cls: "mod-cta" });
 		skipBtn.addEventListener("click", () => this.close());
-
-		const openBtn = actions.createEl("button", { text: "Open survey", cls: "mod-cta" });
-		openBtn.addEventListener("click", () => {
-			window.open(productFormSiteUrl("uninstall"), "_blank");
-			this.close();
-		});
 	}
 
 	onClose(): void {

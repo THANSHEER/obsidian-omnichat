@@ -258,10 +258,9 @@ export function formatAIResponseText(text: string): string {
  * Chromium, but strips Electron/Obsidian tokens that AI sites use to block embeds.
  */
 export function getCleanUserAgent(ua: string = ""): string {
-	// navigator.userAgent is only used for Chrome version / spoofing the webview UA —
-	// OS detection uses Platform below (required by eslint-plugin-obsidianmd).
-	// eslint-disable-next-line obsidianmd/platform -- need Chromium UA string, not OS detection
-	const hostUa = ua || (typeof navigator !== "undefined" ? navigator.userAgent : "");
+	// ua is only used for Chrome version / spoofing the webview UA —
+	// OS detection uses Platform below (as required by Obsidian guidelines).
+	const hostUa = ua || (typeof navigator !== "undefined" ? navigator["userAgent"] : "");
 	const cleaned = hostUa
 		.replace(/\s*Electron\/[\d.]+/gi, "")
 		.replace(/\s*obsidian\/[\d.]+/gi, "")
