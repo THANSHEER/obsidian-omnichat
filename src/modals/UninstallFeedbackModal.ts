@@ -27,7 +27,7 @@ export class UninstallFeedbackModal extends Modal {
 		lead.appendText("Sorry to see you go. If you have a moment, please ");
 
 		const link = lead.createEl("a", {
-			text: "share your feedback",
+			text: "Share your feedback",
 			href: productFormSiteUrl("uninstall"),
 			cls: "oc-uninstall-feedback-link",
 		});

@@ -1,10 +1,9 @@
-import { App, Notice, PluginSettingTab, Setting, type SettingDefinitionItem } from "obsidian";
+import { App, Notice, PluginSettingTab, sanitizeHTMLToDom, Setting, type SettingDefinitionItem } from "obsidian";
 import AIChatPlugin from "./main";
 import { CHATGPT_URL, SERVICE_META, ServiceKey, SERVICE_URLS } from "./constants";
 import { FeatureRequestModal } from "./modals/FeatureRequestModal";
 import { FeedbackModal } from "./modals/FeedbackModal";
 import { GitHubIssueModal } from "./modals/GitHubIssueModal";
-import { GITHUB_REPO } from "./feedback/constants";
 
 import { getServiceKey, normalizeUrl } from "./utils";
 
@@ -160,7 +159,8 @@ export class AIChatSettingTab extends PluginSettingTab {
 					href: kofiUrl,
 					attr: { target: "_blank", rel: "noopener noreferrer", "aria-label": "Support on Ko-fi" },
 				});
-				kofiBtn.innerHTML = KOFI_SVG + "<span>Support the project</span>";
+				kofiBtn.appendChild(sanitizeHTMLToDom(KOFI_SVG));
+				kofiBtn.createSpan({ text: "Support the project" });
 				kofiBtn.addEventListener("click", (e) => {
 					e.preventDefault();
 					window.open(kofiUrl, "_blank");
@@ -173,7 +173,8 @@ export class AIChatSettingTab extends PluginSettingTab {
 					href: githubUrl,
 					attr: { target: "_blank", rel: "noopener noreferrer", "aria-label": "Sponsor on GitHub" },
 				});
-				ghBtn.innerHTML = GITHUB_SVG + "<span>GitHub Sponsors</span>";
+				ghBtn.appendChild(sanitizeHTMLToDom(GITHUB_SVG));
+				ghBtn.createSpan({ text: "GitHub Sponsors" });
 				ghBtn.addEventListener("click", (e) => {
 					e.preventDefault();
 					window.open(githubUrl, "_blank");
@@ -211,7 +212,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 			linksEl.createSpan({ cls: "oc-support-link-sep", text: "·" });
 
 			const issuesLink = linksEl.createEl("a", {
-				text: "GitHub Issues",
+				text: "GitHub issues",
 				cls: "oc-support-text-link",
 				attr: { role: "button" },
 			});

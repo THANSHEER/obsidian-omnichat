@@ -1,4 +1,4 @@
-import { App, Modal } from "obsidian";
+import { App, Modal, sanitizeHTMLToDom } from "obsidian";
 import { formatReleaseBody, type ReleaseNotes } from "../feedback/github";
 import { FeedbackModal } from "./FeedbackModal";
 import { FeatureRequestModal } from "./FeatureRequestModal";
@@ -66,7 +66,7 @@ export class UpdateNotesModal extends Modal {
 
 		// Plugin logo at the top
 		const logoWrap = contentEl.createDiv({ cls: "oc-modal-logo-wrap" });
-		logoWrap.innerHTML = LOGO_SVG;
+		logoWrap.appendChild(sanitizeHTMLToDom(LOGO_SVG));
 
 		contentEl.createEl("h3", { text: `What's new in ${this.version}` });
 		contentEl.createEl("p", {
@@ -96,7 +96,7 @@ export class UpdateNotesModal extends Modal {
 		const closeBtn = actions.createEl("button", { text: "Close" });
 		closeBtn.addEventListener("click", () => this.close());
 
-		const issuesBtn = actions.createEl("button", { text: "GitHub Issues" });
+		const issuesBtn = actions.createEl("button", { text: "GitHub issues" });
 		issuesBtn.addEventListener("click", () => {
 			window.open(`https://github.com/${GITHUB_REPO}/issues`, "_blank");
 		});

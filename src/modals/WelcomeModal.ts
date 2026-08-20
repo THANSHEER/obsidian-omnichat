@@ -1,4 +1,4 @@
-import { App, Modal, setIcon } from "obsidian";
+import { App, Modal, sanitizeHTMLToDom, setIcon } from "obsidian";
 import type AIChatPlugin from "../main";
 
 interface OnboardingFeature {
@@ -118,7 +118,7 @@ export class WelcomeModal extends Modal {
 
 		// Plugin logo at the top
 		const logoWrap = hero.createDiv({ cls: "oc-modal-logo-wrap" });
-		logoWrap.innerHTML = LOGO_SVG;
+		logoWrap.appendChild(sanitizeHTMLToDom(LOGO_SVG));
 
 		hero.createEl("h2", { text: "Welcome to OmniChat" });
 		hero.createEl("p", {
@@ -142,7 +142,7 @@ export class WelcomeModal extends Modal {
 
 		// Logo at the top of features step too
 		const logoWrap = contentEl.createDiv({ cls: "oc-modal-logo-wrap" });
-		logoWrap.innerHTML = LOGO_SVG;
+		logoWrap.appendChild(sanitizeHTMLToDom(LOGO_SVG));
 
 		contentEl.createEl("h3", { text: "What you can do" });
 		contentEl.createEl("p", {
