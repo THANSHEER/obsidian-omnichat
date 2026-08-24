@@ -5,7 +5,7 @@ import { FeatureRequestModal } from "./modals/FeatureRequestModal";
 import { FeedbackModal } from "./modals/FeedbackModal";
 import { GitHubIssueModal } from "./modals/GitHubIssueModal";
 
-import { getServiceKey, normalizeUrl } from "./utils";
+import { getCleanUserAgent, getServiceKey, normalizeUrl } from "./utils";
 
 export interface ContextItem {
 	path: string;
@@ -56,6 +56,8 @@ export interface DockSettings {
 	formatAIResponse: boolean;
 	customServices: CustomService[];
 	splitPanelUrl: string;
+	/** Custom User-Agent string override for webview and Electron session. */
+	customUserAgent: string;
 	/** Last plugin version the user has run — used for first-install welcome and update changelog. */
 	lastSeenVersion: string;
 }
@@ -93,6 +95,7 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	formatAIResponse:  true,
 	customServices:    [],
 	splitPanelUrl:     SERVICE_URLS.claude,
+	customUserAgent:   "",
 	lastSeenVersion:   "",
 };
 
@@ -551,5 +554,51 @@ export class AIChatSettingTab extends PluginSettingTab {
 				});
 			promptRow.settingEl.addClass("vc-template-prompt-row");
 		});
+
+		// ── Browser & Authentication ──────────────────────────
+		new Setting(containerEl).setName("Browser & authentication").setHeading();
+
+		new Setting(containerEl)
+			.setName("Custom user-agent")
+			.setDesc("Overrides the browser user-agent string. Leave blank to use authentic Chrome desktop browser emulation.")
+			.addText(t => {
+				t.setPlaceholder(getCleanUserAgent())
+					.setValue(this.plugin.settings.customUserAgent)
+					.onChange(async v => {
+						this.plugin.settings.customUserAgent = v.trim();
+						await this.plugin.saveSettings();
+						this.plugin.reconfigureBrowserSession();
+						this.plugin.rerenderOpenViews();
+					});
+				t.inputEl.addClass("vc-custom-ua-input");
+				return t;
+			})
+			.addButton(btn => {
+				btn.setButtonText("Reset to Chrome").onClick(async () => {
+					this.plugin.settings.customUserAgent = "";
+					await this.plugin.saveSettings();
+					this.plugin.reconfigureBrowserSession();
+					this.plugin.rerenderOpenViews();
+					this.renderSettings();
+					new Notice("User-agent reset to default Chrome.");
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Clear AI browser data")
+			.setDesc("Clears cookies, cache, and storage for embedded AI web sessions. Useful if a login or session becomes corrupted.")
+			.addButton(btn => {
+				btn.setButtonText("Clear cache & cookies");
+				btn.buttonEl.addClass("mod-warning");
+				btn.onClick(async () => {
+					const cleared = await this.plugin.clearBrowserSession();
+					if (cleared) {
+						new Notice("AI browser cache & cookies cleared.");
+						this.plugin.rerenderOpenViews();
+					} else {
+						new Notice("Could not clear browser session in this environment.");
+					}
+				});
+			});
 	}
 }

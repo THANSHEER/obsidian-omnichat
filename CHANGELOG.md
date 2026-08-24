@@ -1,6 +1,24 @@
 # Changelog
 
-All notable changes to OmniChat are documented in this file. Entries follow the format described in `GUIDE.md` under "Use This Format" and are written for end users, not developers.
+All notable changes to OmniChat are documented in this file.
+
+## [1.7.3] - 2026-08-24
+
+### v1.7.3 - Seamless Google Sign-In & Browser Emulation
+
+Fixes authentication issues with Google Sign-In on Perplexity, ChatGPT, and other AI services by providing full desktop Chrome emulation and dedicated OAuth flow handling.
+
+### Improvements & Fixes
+
+- **Google Sign-In & OAuth Fix**: Added dedicated OAuth popup handling that keeps the active chat session intact while completing login in a shared-session modal.
+- **Authentic Chrome Emulation**: Injected genuine Chrome Client Hints (`sec-ch-ua`, `sec-ch-ua-mobile`, `sec-ch-ua-platform`) and runtime environment properties to prevent `disallowed_useragent` (403) blocks.
+- **Custom User-Agent & Session Tools**: Added advanced settings to customize the User-Agent string and easily clear browser cookies/cache.
+
+---
+
+**How to Update:** Install from Obsidian Community Plugins.
+
+No breaking changes.
 
 ## [1.7.2] - 2026-08-20
 

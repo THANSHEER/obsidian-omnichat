@@ -5,6 +5,7 @@ import { ContextItem } from "../settings";
 import { ContextSearchModal } from "../modals/ContextSearchModal";
 import { FolderPickerModal } from "../modals/FolderPickerModal";
 import { SaveDestinationModal } from "../modals/SaveDestinationModal";
+import { OAuthLoginModal } from "../modals/OAuthLoginModal";
 import { OllamaChatUI } from "./OllamaChatUI";
 import {
 	normalizeUrl,
@@ -13,6 +14,8 @@ import {
 	buildContextString,
 	stripFrontmatterContent,
 	getCleanUserAgent,
+	getChromeStealthScript,
+	isAuthUrl,
 } from "../utils";
 
 export const AI_CHAT_VIEW_TYPE       = "aibrowser-chat-view";
@@ -380,7 +383,7 @@ export class AIChatView extends ItemView {
 		wv.setAttribute("webpreferences", "contextIsolation=yes");
 		
 		// Use host OS + Chrome version; strip Electron/Obsidian so sites see a normal browser UA
-		wv.setAttribute("useragent", getCleanUserAgent());
+		wv.setAttribute("useragent", getCleanUserAgent(this.plugin.settings.customUserAgent));
 
 		wv.src = this.activeUrl;
 
@@ -389,6 +392,9 @@ export class AIChatView extends ItemView {
 			this.setLoading(false);
 			this.fallbackEl?.hide();
 			this.lastInteractedAt = Date.now();
+			if (wv.executeJavaScript) {
+				void wv.executeJavaScript(getChromeStealthScript());
+			}
 			if (this.pendingText) void this.flushPendingText();
 		});
 		wv.addEventListener("did-start-loading",    () => this.setLoading(true));
@@ -405,10 +411,15 @@ export class AIChatView extends ItemView {
 		wv.addEventListener("new-window", (e: Event) => {
 			const ev = e as Event & { url?: string };
 			if (typeof ev.url !== "string") return;
-			// OAuth popups (like Google Sign-In) break in Electron webviews due to context isolation
-			// severing the window.opener connection. Route them into the main webview instead.
-			if (/accounts\.google|appleid\.apple|login\.microsoft/i.test(ev.url) || /auth|login|signin|oauth/i.test(ev.url)) {
-				wv.src = ev.url;
+			// Route OAuth / login popups into a dedicated Auth modal that shares the persistent session partition
+			if (isAuthUrl(ev.url)) {
+				new OAuthLoginModal(
+					this.app,
+					ev.url,
+					this.activeUrl,
+					() => this.reloadWebview(),
+					this.plugin.settings.customUserAgent,
+				).open();
 			} else {
 				// Regular external links (like citations) open safely in the user's default system browser.
 				window.open(ev.url);
@@ -876,7 +887,7 @@ export class AIChatView extends ItemView {
 
 	private switchService(key: ServiceKey): void { this.switchToUrl(SERVICE_URLS[key]); }
 
-	private reloadWebview(): void {
+	reloadWebview(): void {
 		if (getServiceKey(this.activeUrl) === "ollama") {
 			this.ollamaChat?.reload();
 			return;

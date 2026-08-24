@@ -11,6 +11,10 @@ import {
 	guessLanguage,
 	formatAIResponseText,
 	getCleanUserAgent,
+	getChromeClientHints,
+	getChromeStealthScript,
+	isAuthUrl,
+	isHostOrSubdomain,
 } from "../utils";
 import { SERVICE_URLS } from "../constants";
 
@@ -382,6 +386,99 @@ describe("getCleanUserAgent", () => {
 	it("falls back to a Platform-based Chrome UA when host UA is unusable", () => {
 		// Platform mock defaults to macOS.
 		expect(getCleanUserAgent("")).toContain("Macintosh; Intel Mac OS X");
-		expect(getCleanUserAgent("")).toContain("Chrome/125.0.0.0");
+		expect(getCleanUserAgent("")).toContain("Chrome/133.0.0.0");
 	});
 });
+
+// ── getChromeClientHints ──────────────────────────────────────────────────────
+
+describe("getChromeClientHints", () => {
+	it("extracts matching major version and platform from User-Agent", () => {
+		const ua =
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.86 Safari/537.36";
+		const hints = getChromeClientHints(ua);
+		expect(hints.secChUa).toContain('"Google Chrome";v="131"');
+		expect(hints.secChUa).toContain('"Chromium";v="131"');
+		expect(hints.secChUaMobile).toBe("?0");
+		expect(hints.secChUaPlatform).toBe('"Windows"');
+	});
+
+	it("identifies macOS platform correctly", () => {
+		const ua =
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36";
+		const hints = getChromeClientHints(ua);
+		expect(hints.secChUaPlatform).toBe('"macOS"');
+	});
+});
+
+// ── getChromeStealthScript ────────────────────────────────────────────────────
+
+describe("getChromeStealthScript", () => {
+	it("returns a self-executing JS function string", () => {
+		const script = getChromeStealthScript();
+		expect(script).toContain("window.chrome");
+		expect(script).toContain("webdriver");
+		expect(script).toContain("loadTimes");
+		expect(script).toContain("csi");
+	});
+});
+
+// ── isHostOrSubdomain ─────────────────────────────────────────────────────────
+
+describe("isHostOrSubdomain", () => {
+	it("returns true for exact domain match", () => {
+		expect(isHostOrSubdomain("appleid.apple.com", "appleid.apple.com")).toBe(true);
+		expect(isHostOrSubdomain("perplexity.ai", "perplexity.ai")).toBe(true);
+	});
+
+	it("returns true for legitimate subdomains", () => {
+		expect(isHostOrSubdomain("auth.perplexity.ai", "perplexity.ai")).toBe(true);
+		expect(isHostOrSubdomain("sub.auth.openai.com", "openai.com")).toBe(true);
+	});
+
+	it("returns false for domain poisoning / substring attacks (CodeQL safe)", () => {
+		expect(isHostOrSubdomain("evilappleid.apple.com", "appleid.apple.com")).toBe(false);
+		expect(isHostOrSubdomain("notopenai.com", "openai.com")).toBe(false);
+		expect(isHostOrSubdomain("perplexity.ai.attacker.com", "perplexity.ai")).toBe(false);
+	});
+
+	it("is case-insensitive", () => {
+		expect(isHostOrSubdomain("APPLEID.APPLE.COM", "appleid.apple.com")).toBe(true);
+	});
+});
+
+// ── isAuthUrl ─────────────────────────────────────────────────────────────────
+
+describe("isAuthUrl", () => {
+	it("identifies Google OAuth accounts URLs", () => {
+		expect(isAuthUrl("https://accounts.google.com/o/oauth2/v2/auth?client_id=123")).toBe(true);
+		expect(isAuthUrl("https://accounts.google.co.uk/signin/v2")).toBe(true);
+	});
+
+	it("identifies Microsoft & Apple login URLs", () => {
+		expect(isAuthUrl("https://login.microsoftonline.com/common/oauth2/v2.0/authorize")).toBe(true);
+		expect(isAuthUrl("https://appleid.apple.com/auth/authorize")).toBe(true);
+	});
+
+	it("identifies Perplexity auth endpoints", () => {
+		expect(isAuthUrl("https://www.perplexity.ai/api/auth/signin/google")).toBe(true);
+		expect(isAuthUrl("https://www.perplexity.ai/auth/login")).toBe(true);
+	});
+
+	it("identifies generic OAuth parameters", () => {
+		expect(isAuthUrl("https://example.com/oauth/authorize?response_type=code&client_id=xyz")).toBe(true);
+	});
+
+	it("returns false for regular external documentation or article URLs", () => {
+		expect(isAuthUrl("https://en.wikipedia.org/wiki/Artificial_intelligence")).toBe(false);
+		expect(isAuthUrl("https://github.com/obsidianmd/obsidian-api")).toBe(false);
+		expect(isAuthUrl("https://news.ycombinator.com/")).toBe(false);
+	});
+
+	it("rejects malicious URLs attempting substring domain spoofing", () => {
+		expect(isAuthUrl("https://evilappleid.apple.com/login")).toBe(false);
+		expect(isAuthUrl("https://notopenai.com/auth")).toBe(false);
+	});
+});
+
+

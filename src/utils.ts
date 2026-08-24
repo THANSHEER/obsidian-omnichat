@@ -258,9 +258,7 @@ export function formatAIResponseText(text: string): string {
  * Chromium, but strips Electron/Obsidian tokens that AI sites use to block embeds.
  */
 export function getCleanUserAgent(ua: string = ""): string {
-	// ua is only used for Chrome version / spoofing the webview UA —
-	// OS detection uses Platform below (as required by Obsidian guidelines).
-	const hostUa = ua || (typeof navigator !== "undefined" ? navigator["userAgent"] : "");
+	const hostUa = ua.trim() || (typeof navigator !== "undefined" ? navigator["userAgent"] : "");
 	const cleaned = hostUa
 		.replace(/\s*Electron\/[\d.]+/gi, "")
 		.replace(/\s*obsidian\/[\d.]+/gi, "")
@@ -276,6 +274,196 @@ export function getCleanUserAgent(ua: string = ""): string {
 		: Platform.isLinux
 			? "X11; Linux x86_64"
 			: "Macintosh; Intel Mac OS X 10_15_7";
-	const chromeVer = hostUa.match(/Chrome\/([\d.]+)/)?.[1] ?? "125.0.0.0";
+	const chromeVer = hostUa.match(/Chrome\/([\d.]+)/)?.[1] ?? "133.0.0.0";
 	return `Mozilla/5.0 (${osToken}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVer} Safari/537.36`;
+}
+
+/**
+ * Generates modern Chrome Client Hints matching the cleaned User-Agent.
+ */
+export function getChromeClientHints(ua: string = ""): {
+	secChUa: string;
+	secChUaMobile: string;
+	secChUaPlatform: string;
+} {
+	const userAgent = getCleanUserAgent(ua);
+	const match = userAgent.match(/Chrome\/(\d+)/);
+	const major = match ? match[1] : "133";
+	const isWin = /Windows/i.test(userAgent);
+	const isMac = /Macintosh|Mac OS/i.test(userAgent);
+
+	return {
+		secChUa: `"Chromium";v="${major}", "Google Chrome";v="${major}", "Not:A-Brand";v="99"`,
+		secChUaMobile: "?0",
+		secChUaPlatform: isWin ? '"Windows"' : isMac ? '"macOS"' : '"Linux"',
+	};
+}
+
+/**
+ * Stealth script injected into the webview to ensure JavaScript environment
+ * properties (window.chrome, navigator.webdriver, etc.) match a genuine Google Chrome browser.
+ */
+export function getChromeStealthScript(): string {
+	return `
+		(function() {
+			try {
+				// 1. Mask navigator.webdriver
+				if (Object.defineProperty) {
+					try {
+						Object.defineProperty(navigator, 'webdriver', {
+							get: function() { return undefined; },
+							configurable: true
+						});
+					} catch(e) {}
+				}
+
+				// 2. Mock window.chrome runtime, app, csi, loadTimes
+				if (!window.chrome) {
+					window.chrome = {};
+				}
+				if (!window.chrome.app) {
+					window.chrome.app = {
+						isInstalled: false,
+						InstallState: { DISABLED: "disabled", INSTALLED: "installed", NOT_INSTALLED: "not_installed" },
+						RunningState: { CANNOT_RUN: "cannot_run", READY_TO_RUN: "ready_to_run", RUNNING: "running" },
+						getDetails: function() { return null; },
+						getIsInstalled: function() { return false; },
+						installState: function() { return "not_installed"; },
+						runningState: function() { return "cannot_run"; }
+					};
+				}
+				if (!window.chrome.runtime) {
+					window.chrome.runtime = {
+						OnInstalledReason: { CHROME_UPDATE: "chrome_update", INSTALL: "install", SHARED_MODULE_UPDATE: "shared_module_update", UPDATE: "update" },
+						OnRestartRequired: { APP_UPDATE: "app_update", OS_UPDATE: "os_update", PERIODIC: "periodic" },
+						PlatformArch: { ARM: "arm", ARM64: "arm64", MIPS: "mips", MIPS64: "mips64", X86_32: "x86-32", X86_64: "x86-64" },
+						PlatformNaclArch: { ARM: "arm", MIPS: "mips", MIPS64: "mips64", X86_32: "x86-32", X86_64: "x86-64" },
+						PlatformOs: { ANDROID: "android", CROS: "cros", LINUX: "linux", MAC: "mac", OPENBSD: "openbsd", WIN: "win" },
+						RequestUpdateCheckStatus: { NO_UPDATE: "no_update", THROTTLED: "throttled", UPDATE_AVAILABLE: "update_available" },
+						connect: function() { return { disconnect: function() {}, onDisconnect: { addListener: function() {} }, onMessage: { addListener: function() {} }, postMessage: function() {} }; },
+						sendMessage: function() {}
+					};
+				}
+				if (!window.chrome.csi) {
+					window.chrome.csi = function() {
+						return { startE: Date.now(), onloadT: Date.now(), pageT: 0, tran: 15 };
+					};
+				}
+				if (!window.chrome.loadTimes) {
+					window.chrome.loadTimes = function() {
+						return {
+							commitLoadTime: Date.now() / 1000,
+							connectionInfo: "http/1.1",
+							finishDocumentLoadTime: Date.now() / 1000,
+							finishLoadTime: Date.now() / 1000,
+							firstPaintAfterLoadTime: 0,
+							firstPaintTime: Date.now() / 1000,
+							navigationType: "Other",
+							npnNegotiatedProtocol: "unknown",
+							requestTime: Date.now() / 1000,
+							startLoadTime: Date.now() / 1000,
+							wasAlternateProtocolAvailable: false,
+							wasFetchedViaSpdy: false,
+							wasNpnNegotiated: false
+						};
+					};
+				}
+
+				// 3. Ensure navigator.languages is properly populated
+				if (!navigator.languages || navigator.languages.length === 0) {
+					try {
+						Object.defineProperty(navigator, 'languages', {
+							get: function() { return [navigator.language || 'en-US', 'en']; },
+							configurable: true
+						});
+					} catch(e) {}
+				}
+			} catch(e) {}
+		})();
+	`;
+}
+
+/**
+ * Safely checks if a hostname matches a domain or is a valid subdomain of it.
+ * Avoids substring false positives flagged by security scanners (e.g. CodeQL).
+ */
+export function isHostOrSubdomain(hostname: string, domain: string): boolean {
+	const h = hostname.toLowerCase();
+	const d = domain.toLowerCase();
+	return h === d || h.endsWith(`.${d}`);
+}
+
+const KNOWN_AUTH_DOMAINS = [
+	"appleid.apple.com",
+	"login.microsoftonline.com",
+	"login.live.com",
+	"auth0.com",
+	"clerk.com",
+	"firebaseapp.com",
+	"okta.com",
+	"amazoncognito.com",
+] as const;
+
+/**
+ * Checks if a given URL is an OAuth or authentication endpoint that should be handled
+ * via the dedicated Auth modal rather than external browser.
+ */
+export function isAuthUrl(url: string): boolean {
+	if (!url) return false;
+	try {
+		const parsed = new URL(url);
+		const host = parsed.hostname.toLowerCase();
+		const path = parsed.pathname.toLowerCase();
+
+		// Google accounts OAuth domains (e.g. accounts.google.com, accounts.google.co.uk)
+		if (host === "accounts.google.com" || host.endsWith(".accounts.google.com") || /^accounts\.google\.[a-z.]+$/i.test(host)) {
+			return true;
+		}
+
+		// Well-known auth provider domains
+		for (const domain of KNOWN_AUTH_DOMAINS) {
+			if (isHostOrSubdomain(host, domain)) {
+				return true;
+			}
+		}
+
+		// Service specific auth paths / subdomains
+		if (
+			isHostOrSubdomain(host, "perplexity.ai") &&
+			(path.startsWith("/auth") || path.startsWith("/login") || path.startsWith("/signin") || path.startsWith("/api/auth"))
+		) {
+			return true;
+		}
+
+		if (
+			(isHostOrSubdomain(host, "chatgpt.com") || isHostOrSubdomain(host, "openai.com")) &&
+			(path.startsWith("/auth") || path.startsWith("/login") || host.startsWith("auth."))
+		) {
+			return true;
+		}
+
+		if (
+			(isHostOrSubdomain(host, "claude.ai") || isHostOrSubdomain(host, "anthropic.com")) &&
+			(path.startsWith("/login") || path.startsWith("/auth") || host.startsWith("auth."))
+		) {
+			return true;
+		}
+
+		// Generic OAuth / login keywords in URL path or query parameters
+		if (
+			path.includes("/oauth") ||
+			path.includes("/login/oauth") ||
+			path.includes("/api/auth") ||
+			path.includes("/v1/auth") ||
+			parsed.searchParams.has("response_type") ||
+			parsed.searchParams.has("client_id") ||
+			parsed.searchParams.has("redirect_uri")
+		) {
+			return true;
+		}
+
+		return false;
+	} catch {
+		return false;
+	}
 }

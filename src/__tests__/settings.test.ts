@@ -97,6 +97,7 @@ describe("DEFAULT_SETTINGS", () => {
 			"formatAIResponse",
 			"customServices",
 			"splitPanelUrl",
+			"customUserAgent",
 			"lastSeenVersion",
 		];
 		for (const key of requiredKeys) {
