@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { getCleanUserAgent, getChromeStealthScript } from "../utils";
+import { getCleanUserAgent, getChromeStealthScript, isHostOrSubdomain } from "../utils";
 
 type EmbeddedWebview = HTMLElement & {
 	src: string;
@@ -81,9 +81,20 @@ export class OAuthLoginModal extends Modal {
 				const target = new URL(this.targetServiceUrl);
 
 				// If navigation has reached the target host outside of standard external OAuth domains
-				const isTargetHost = current.hostname.endsWith(target.hostname) || target.hostname.endsWith(current.hostname);
+				const isTargetHost =
+					isHostOrSubdomain(current.hostname, target.hostname) ||
+					isHostOrSubdomain(target.hostname, current.hostname);
+
 				const isOAuthDomain =
-					/accounts\.google\.|appleid\.apple|login\.microsoft|login\.live|auth0\.com|clerk\./i.test(current.hostname);
+					/^accounts\.google\.[a-z.]+$/i.test(current.hostname) ||
+					current.hostname.endsWith(".accounts.google.com") ||
+					isHostOrSubdomain(current.hostname, "appleid.apple.com") ||
+					isHostOrSubdomain(current.hostname, "login.microsoftonline.com") ||
+					isHostOrSubdomain(current.hostname, "login.live.com") ||
+					isHostOrSubdomain(current.hostname, "auth0.com") ||
+					isHostOrSubdomain(current.hostname, "clerk.com") ||
+					isHostOrSubdomain(current.hostname, "okta.com") ||
+					isHostOrSubdomain(current.hostname, "firebaseapp.com");
 
 				if (isTargetHost && !isOAuthDomain) {
 					this.isCompleted = true;

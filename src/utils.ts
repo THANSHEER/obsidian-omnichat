@@ -384,6 +384,27 @@ export function getChromeStealthScript(): string {
 }
 
 /**
+ * Safely checks if a hostname matches a domain or is a valid subdomain of it.
+ * Avoids substring false positives flagged by security scanners (e.g. CodeQL).
+ */
+export function isHostOrSubdomain(hostname: string, domain: string): boolean {
+	const h = hostname.toLowerCase();
+	const d = domain.toLowerCase();
+	return h === d || h.endsWith(`.${d}`);
+}
+
+const KNOWN_AUTH_DOMAINS = [
+	"appleid.apple.com",
+	"login.microsoftonline.com",
+	"login.live.com",
+	"auth0.com",
+	"clerk.com",
+	"firebaseapp.com",
+	"okta.com",
+	"amazoncognito.com",
+] as const;
+
+/**
  * Checks if a given URL is an OAuth or authentication endpoint that should be handled
  * via the dedicated Auth modal rather than external browser.
  */
@@ -394,52 +415,49 @@ export function isAuthUrl(url: string): boolean {
 		const host = parsed.hostname.toLowerCase();
 		const path = parsed.pathname.toLowerCase();
 
-		// Well-known auth hostnames
-		if (
-			host.includes("accounts.google.") ||
-			host.includes("appleid.apple.com") ||
-			host.includes("login.microsoftonline.com") ||
-			host.includes("login.live.com") ||
-			host.includes("auth0.com") ||
-			host.includes("clerk.") ||
-			host.includes("firebaseapp.com") ||
-			host.includes("cognito.") ||
-			host.includes("okta.com")
-		) {
+		// Google accounts OAuth domains (e.g. accounts.google.com, accounts.google.co.uk)
+		if (host === "accounts.google.com" || host.endsWith(".accounts.google.com") || /^accounts\.google\.[a-z.]+$/i.test(host)) {
 			return true;
+		}
+
+		// Well-known auth provider domains
+		for (const domain of KNOWN_AUTH_DOMAINS) {
+			if (isHostOrSubdomain(host, domain)) {
+				return true;
+			}
 		}
 
 		// Service specific auth paths / subdomains
 		if (
-			host.includes("perplexity.ai") &&
-			(path.includes("/auth") || path.includes("/login") || path.includes("/signin") || path.includes("/api/auth"))
+			isHostOrSubdomain(host, "perplexity.ai") &&
+			(path.startsWith("/auth") || path.startsWith("/login") || path.startsWith("/signin") || path.startsWith("/api/auth"))
 		) {
 			return true;
 		}
 
 		if (
-			(host.includes("chatgpt.com") || host.includes("openai.com")) &&
-			(path.includes("/auth") || path.includes("/login") || host.startsWith("auth."))
+			(isHostOrSubdomain(host, "chatgpt.com") || isHostOrSubdomain(host, "openai.com")) &&
+			(path.startsWith("/auth") || path.startsWith("/login") || host.startsWith("auth."))
 		) {
 			return true;
 		}
 
 		if (
-			host.includes("claude.ai") &&
-			(path.includes("/login") || path.includes("/auth") || host.startsWith("auth."))
+			(isHostOrSubdomain(host, "claude.ai") || isHostOrSubdomain(host, "anthropic.com")) &&
+			(path.startsWith("/login") || path.startsWith("/auth") || host.startsWith("auth."))
 		) {
 			return true;
 		}
 
-		// Generic OAuth / login keywords in URL
+		// Generic OAuth / login keywords in URL path or query parameters
 		if (
 			path.includes("/oauth") ||
 			path.includes("/login/oauth") ||
 			path.includes("/api/auth") ||
 			path.includes("/v1/auth") ||
-			parsed.search.includes("response_type=code") ||
-			parsed.search.includes("client_id=") ||
-			parsed.search.includes("redirect_uri=")
+			parsed.searchParams.has("response_type") ||
+			parsed.searchParams.has("client_id") ||
+			parsed.searchParams.has("redirect_uri")
 		) {
 			return true;
 		}

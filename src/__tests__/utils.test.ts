@@ -14,6 +14,7 @@ import {
 	getChromeClientHints,
 	getChromeStealthScript,
 	isAuthUrl,
+	isHostOrSubdomain,
 } from "../utils";
 import { SERVICE_URLS } from "../constants";
 
@@ -422,6 +423,30 @@ describe("getChromeStealthScript", () => {
 	});
 });
 
+// ── isHostOrSubdomain ─────────────────────────────────────────────────────────
+
+describe("isHostOrSubdomain", () => {
+	it("returns true for exact domain match", () => {
+		expect(isHostOrSubdomain("appleid.apple.com", "appleid.apple.com")).toBe(true);
+		expect(isHostOrSubdomain("perplexity.ai", "perplexity.ai")).toBe(true);
+	});
+
+	it("returns true for legitimate subdomains", () => {
+		expect(isHostOrSubdomain("auth.perplexity.ai", "perplexity.ai")).toBe(true);
+		expect(isHostOrSubdomain("sub.auth.openai.com", "openai.com")).toBe(true);
+	});
+
+	it("returns false for domain poisoning / substring attacks (CodeQL safe)", () => {
+		expect(isHostOrSubdomain("evilappleid.apple.com", "appleid.apple.com")).toBe(false);
+		expect(isHostOrSubdomain("notopenai.com", "openai.com")).toBe(false);
+		expect(isHostOrSubdomain("perplexity.ai.attacker.com", "perplexity.ai")).toBe(false);
+	});
+
+	it("is case-insensitive", () => {
+		expect(isHostOrSubdomain("APPLEID.APPLE.COM", "appleid.apple.com")).toBe(true);
+	});
+});
+
 // ── isAuthUrl ─────────────────────────────────────────────────────────────────
 
 describe("isAuthUrl", () => {
@@ -449,5 +474,11 @@ describe("isAuthUrl", () => {
 		expect(isAuthUrl("https://github.com/obsidianmd/obsidian-api")).toBe(false);
 		expect(isAuthUrl("https://news.ycombinator.com/")).toBe(false);
 	});
+
+	it("rejects malicious URLs attempting substring domain spoofing", () => {
+		expect(isAuthUrl("https://evilappleid.apple.com/login")).toBe(false);
+		expect(isAuthUrl("https://notopenai.com/auth")).toBe(false);
+	});
 });
+
 
