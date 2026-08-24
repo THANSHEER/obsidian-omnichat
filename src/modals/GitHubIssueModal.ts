@@ -44,7 +44,7 @@ export class GitHubIssueModal extends Modal {
 
 			const textEl = card.createDiv({ cls: "oc-issue-card-text" });
 			textEl.createEl("strong", { text: type.label });
-			textEl.createEl("span", { text: type.desc });
+			textEl.createSpan({ text: type.desc });
 
 			card.addEventListener("click", () => {
 				const url = `https://github.com/${GITHUB_REPO}/issues/new?template=${type.template}.md`;

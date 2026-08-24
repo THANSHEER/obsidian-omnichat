@@ -6,8 +6,47 @@ import { UpdateNotesModal } from "./modals/UpdateNotesModal";
 import { UninstallFeedbackModal } from "./modals/UninstallFeedbackModal";
 import { WelcomeModal } from "./modals/WelcomeModal";
 import { ContextItem, DEFAULT_SETTINGS, DockSettings, AIChatSettingTab } from "./settings";
-import { getServiceKey } from "./utils";
+import { getCleanUserAgent, getChromeClientHints, getServiceKey } from "./utils";
 import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
+
+interface ElectronWebRequest {
+	onBeforeSendHeaders?: (
+		listener: (
+			details: { requestHeaders: Record<string, string> },
+			callback: (response: { cancel: boolean; requestHeaders: Record<string, string> }) => void,
+		) => void,
+	) => void;
+}
+
+interface ElectronSession {
+	setUserAgent?: (userAgent: string) => void;
+	webRequest?: ElectronWebRequest;
+	clearStorageData?: (options: { storages: string[] }) => Promise<void>;
+	clearCache?: () => Promise<void>;
+}
+
+interface ElectronSessionModule {
+	fromPartition?: (partition: string) => ElectronSession;
+}
+
+interface ElectronApi {
+	session?: ElectronSessionModule;
+	remote?: {
+		session?: ElectronSessionModule;
+	};
+}
+
+function getElectronApi(): ElectronApi | null {
+	try {
+		const g = window as unknown as { require?: (id: string) => ElectronApi };
+		if (typeof g.require === "function") {
+			return g.require("electron");
+		}
+	} catch {
+		// Electron not available or in web sandbox
+	}
+	return null;
+}
 
 /** Internal Plugins API — uninstallPlugin is not in the public typings. */
 type PluginsApi = {
@@ -27,6 +66,7 @@ export default class AIChatPlugin extends Plugin {
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.pluginActive = true;
+		this.configureElectronSession();
 		this.patchUninstallFeedback();
 
 		this.registerView(
@@ -319,5 +359,77 @@ export default class AIChatPlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+		this.configureElectronSession();
+	}
+
+	configureElectronSession(): void {
+		try {
+			const electron = getElectronApi();
+			const session = electron?.session ?? electron?.remote?.session;
+			if (!session || typeof session.fromPartition !== "function") return;
+
+			const ses = session.fromPartition("persist:aibrowser-chat");
+			const userAgent = getCleanUserAgent(this.settings.customUserAgent);
+
+			// 1. Set global user agent on the partition session
+			if (typeof ses.setUserAgent === "function") {
+				ses.setUserAgent(userAgent);
+			}
+
+			// 2. Intercept request headers to enforce Chrome client hints and remove leaking electron headers
+			if (ses.webRequest && typeof ses.webRequest.onBeforeSendHeaders === "function") {
+				const hints = getChromeClientHints(userAgent);
+				ses.webRequest.onBeforeSendHeaders(
+					(
+						details: { requestHeaders: Record<string, string> },
+						callback: (response: { cancel: boolean; requestHeaders: Record<string, string> }) => void,
+					) => {
+						const requestHeaders = { ...details.requestHeaders };
+
+						// Ensure User-Agent is clean
+						requestHeaders["User-Agent"] = userAgent;
+
+						// Inject standard Chrome Client Hints
+						requestHeaders["sec-ch-ua"] = hints.secChUa;
+						requestHeaders["sec-ch-ua-mobile"] = hints.secChUaMobile;
+						requestHeaders["sec-ch-ua-platform"] = hints.secChUaPlatform;
+
+						// Remove leaking headers
+						delete requestHeaders["X-Requested-With"];
+						delete requestHeaders["x-requested-with"];
+
+						callback({ cancel: false, requestHeaders });
+					},
+				);
+			}
+		} catch (err) {
+			console.debug("OmniChat: Electron session configuration skipped or unavailable", err);
+		}
+	}
+
+	reconfigureBrowserSession(): void {
+		this.configureElectronSession();
+	}
+
+	async clearBrowserSession(): Promise<boolean> {
+		try {
+			const electron = getElectronApi();
+			const session = electron?.session ?? electron?.remote?.session;
+			if (!session || typeof session.fromPartition !== "function") return false;
+
+			const ses = session.fromPartition("persist:aibrowser-chat");
+			if (typeof ses.clearStorageData === "function") {
+				await ses.clearStorageData({
+					storages: ["cookies", "localstorage", "indexdb", "websql", "serviceworkers", "cachestorage"],
+				});
+			}
+			if (typeof ses.clearCache === "function") {
+				await ses.clearCache();
+			}
+			return true;
+		} catch (err) {
+			console.error("OmniChat: Failed to clear browser session", err);
+			return false;
+		}
 	}
 }
