@@ -2,6 +2,22 @@
 
 All notable changes to OmniChat are documented in this file.
 
+## [1.7.4] - 2026-08-31
+
+### v1.7.4 - Secure Google Login via Firefox User-Agent
+
+Bypasses the "This browser may not be secure" block during Google OAuth sign-in by using a Firefox User-Agent specifically for Google accounts and authentication URLs.
+
+### Fixes
+
+- **Google OAuth Firefox Bypass**: Added an automatic Firefox User-Agent spoofing strategy specifically for Google authentication URLs (e.g. `accounts.google.com` and `myaccount.google.com`) and stripped Chrome Client Hints (`sec-ch-ua` headers) on these requests to bypass Google's embedded browser restrictions.
+
+---
+
+**How to Update:** Install from Obsidian Community Plugins.
+
+No breaking changes.
+
 ## [1.7.3] - 2026-08-24
 
 ### v1.7.3 - Seamless Google Sign-In & Browser Emulation
