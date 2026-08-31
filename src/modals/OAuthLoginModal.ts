@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { getCleanUserAgent, getChromeStealthScript, isHostOrSubdomain } from "../utils";
+import { getCleanUserAgent, getChromeStealthScript, isHostOrSubdomain, getFirefoxUserAgent, isGoogleAuthUrl } from "../utils";
 
 type EmbeddedWebview = HTMLElement & {
 	src: string;
@@ -55,7 +55,11 @@ export class OAuthLoginModal extends Modal {
 		wv.setAttribute("partition", "persist:aibrowser-chat");
 		wv.setAttribute("allowpopups", "");
 		wv.setAttribute("webpreferences", "contextIsolation=yes");
-		wv.setAttribute("useragent", getCleanUserAgent(this.customUserAgent));
+		const isGoogleAuth = isGoogleAuthUrl(this.authUrl);
+		const initialUa = isGoogleAuth
+			? getFirefoxUserAgent(this.customUserAgent)
+			: getCleanUserAgent(this.customUserAgent);
+		wv.setAttribute("useragent", initialUa);
 		wv.src = this.authUrl;
 
 		wv.addEventListener("did-start-loading", () => {

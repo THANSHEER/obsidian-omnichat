@@ -467,3 +467,40 @@ export function isAuthUrl(url: string): boolean {
 		return false;
 	}
 }
+
+/**
+ * Checks if a URL is a Google Auth / account login URL.
+ */
+export function isGoogleAuthUrl(url: string): boolean {
+	if (!url) return false;
+	try {
+		const parsed = new URL(url);
+		const host = parsed.hostname.toLowerCase();
+		return host === "accounts.google.com" ||
+			host.endsWith(".accounts.google.com") ||
+			/^accounts\.google\.[a-z.]+$/i.test(host) ||
+			host === "myaccount.google.com" ||
+			host.endsWith(".myaccount.google.com") ||
+			/^myaccount\.google\.[a-z.]+$/i.test(host);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Generates a clean Firefox User-Agent matching the host platform/OS.
+ */
+export function getFirefoxUserAgent(ua: string = ""): string {
+	const hostUa = ua.trim() || (typeof navigator !== "undefined" ? navigator["userAgent"] : "");
+	const isWin = /Windows/i.test(hostUa) || (typeof Platform !== "undefined" && Platform.isWin);
+	const isLinux = /Linux/i.test(hostUa) || (typeof Platform !== "undefined" && Platform.isLinux);
+
+	const osToken = isWin
+		? "Windows NT 10.0; Win64; x64"
+		: isLinux
+			? "X11; Linux x86_64"
+			: "Macintosh; Intel Mac OS X 10.15";
+
+	return `Mozilla/5.0 (${osToken}; rv:130.0) Gecko/20100101 Firefox/130.0`;
+}
+

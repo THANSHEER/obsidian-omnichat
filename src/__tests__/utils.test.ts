@@ -15,6 +15,8 @@ import {
 	getChromeStealthScript,
 	isAuthUrl,
 	isHostOrSubdomain,
+	getFirefoxUserAgent,
+	isGoogleAuthUrl,
 } from "../utils";
 import { SERVICE_URLS } from "../constants";
 
@@ -480,5 +482,49 @@ describe("isAuthUrl", () => {
 		expect(isAuthUrl("https://notopenai.com/auth")).toBe(false);
 	});
 });
+
+// ── isGoogleAuthUrl ───────────────────────────────────────────────────────────
+
+describe("isGoogleAuthUrl", () => {
+	it("identifies Google OAuth accounts URLs correctly", () => {
+		expect(isGoogleAuthUrl("https://accounts.google.com/o/oauth2/v2/auth")).toBe(true);
+		expect(isGoogleAuthUrl("https://accounts.google.co.uk/signin/v2")).toBe(true);
+		expect(isGoogleAuthUrl("https://myaccount.google.com/")).toBe(true);
+	});
+
+	it("returns false for non-Google URLs", () => {
+		expect(isGoogleAuthUrl("https://login.microsoftonline.com/")).toBe(false);
+		expect(isGoogleAuthUrl("https://github.com")).toBe(false);
+	});
+
+	it("returns false for invalid URLs", () => {
+		expect(isGoogleAuthUrl("not-a-url")).toBe(false);
+	});
+});
+
+// ── getFirefoxUserAgent ────────────────────────────────────────────────────────
+
+describe("getFirefoxUserAgent", () => {
+	it("returns a Windows Firefox User-Agent when the input contains Windows", () => {
+		const ua = getFirefoxUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+		expect(ua).toContain("Windows NT 10.0; Win64; x64");
+		expect(ua).toContain("Firefox/130.0");
+		expect(ua).toContain("rv:130.0");
+		expect(ua).not.toContain("Chrome");
+	});
+
+	it("returns a Linux Firefox User-Agent when the input contains Linux", () => {
+		const ua = getFirefoxUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36");
+		expect(ua).toContain("X11; Linux x86_64");
+		expect(ua).toContain("Firefox/130.0");
+	});
+
+	it("returns a Mac Firefox User-Agent by default or when input contains Macintosh", () => {
+		const ua = getFirefoxUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
+		expect(ua).toContain("Macintosh; Intel Mac OS X 10.15");
+		expect(ua).toContain("Firefox/130.0");
+	});
+});
+
 
 

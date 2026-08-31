@@ -6,13 +6,13 @@ import { UpdateNotesModal } from "./modals/UpdateNotesModal";
 import { UninstallFeedbackModal } from "./modals/UninstallFeedbackModal";
 import { WelcomeModal } from "./modals/WelcomeModal";
 import { ContextItem, DEFAULT_SETTINGS, DockSettings, AIChatSettingTab } from "./settings";
-import { getCleanUserAgent, getChromeClientHints, getServiceKey } from "./utils";
+import { getCleanUserAgent, getChromeClientHints, getServiceKey, getFirefoxUserAgent, isGoogleAuthUrl } from "./utils";
 import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
 
 interface ElectronWebRequest {
 	onBeforeSendHeaders?: (
 		listener: (
-			details: { requestHeaders: Record<string, string> },
+			details: { url: string; requestHeaders: Record<string, string> },
 			callback: (response: { cancel: boolean; requestHeaders: Record<string, string> }) => void,
 		) => void,
 	) => void;
@@ -378,21 +378,33 @@ export default class AIChatPlugin extends Plugin {
 
 			// 2. Intercept request headers to enforce Chrome client hints and remove leaking electron headers
 			if (ses.webRequest && typeof ses.webRequest.onBeforeSendHeaders === "function") {
-				const hints = getChromeClientHints(userAgent);
+				const chromeHints = getChromeClientHints(userAgent);
 				ses.webRequest.onBeforeSendHeaders(
 					(
-						details: { requestHeaders: Record<string, string> },
+						details: { url: string; requestHeaders: Record<string, string> },
 						callback: (response: { cancel: boolean; requestHeaders: Record<string, string> }) => void,
 					) => {
 						const requestHeaders = { ...details.requestHeaders };
+						const requestUrl = details.url;
 
-						// Ensure User-Agent is clean
-						requestHeaders["User-Agent"] = userAgent;
+						if (isGoogleAuthUrl(requestUrl)) {
+							// Google OAuth needs a Firefox User-Agent to bypass WebView blocks
+							const firefoxUa = getFirefoxUserAgent(userAgent);
+							requestHeaders["User-Agent"] = firefoxUa;
 
-						// Inject standard Chrome Client Hints
-						requestHeaders["sec-ch-ua"] = hints.secChUa;
-						requestHeaders["sec-ch-ua-mobile"] = hints.secChUaMobile;
-						requestHeaders["sec-ch-ua-platform"] = hints.secChUaPlatform;
+							// Firefox does not support/send Chrome Client Hints, remove them if present
+							delete requestHeaders["sec-ch-ua"];
+							delete requestHeaders["sec-ch-ua-mobile"];
+							delete requestHeaders["sec-ch-ua-platform"];
+						} else {
+							// Ensure User-Agent is clean
+							requestHeaders["User-Agent"] = userAgent;
+
+							// Inject standard Chrome Client Hints
+							requestHeaders["sec-ch-ua"] = chromeHints.secChUa;
+							requestHeaders["sec-ch-ua-mobile"] = chromeHints.secChUaMobile;
+							requestHeaders["sec-ch-ua-platform"] = chromeHints.secChUaPlatform;
+						}
 
 						// Remove leaking headers
 						delete requestHeaders["X-Requested-With"];
