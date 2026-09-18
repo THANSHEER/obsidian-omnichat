@@ -13,6 +13,7 @@ import {
 	getCleanUserAgent,
 	getChromeClientHints,
 	getChromeStealthScript,
+	getWebviewScrollFixScript,
 	isAuthUrl,
 	isHostOrSubdomain,
 	getFirefoxUserAgent,
@@ -422,6 +423,20 @@ describe("getChromeStealthScript", () => {
 		expect(script).toContain("webdriver");
 		expect(script).toContain("loadTimes");
 		expect(script).toContain("csi");
+	});
+});
+
+// ── getWebviewScrollFixScript ─────────────────────────────────────────────────
+
+describe("getWebviewScrollFixScript", () => {
+	it("returns a self-executing JS function string", () => {
+		const script = getWebviewScrollFixScript();
+		expect(script).toContain("__omnichat_scroll_fix");
+		expect(script).toContain("__omnichat_wheel_listener");
+		expect(script).toContain("::-webkit-scrollbar");
+		expect(script).toContain("scrollbar-width");
+		expect(script).toContain("padding-bottom");
+		expect(script).toContain("wheel");
 	});
 });
 

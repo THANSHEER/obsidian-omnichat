@@ -81,6 +81,7 @@
 	min-height: 0;
 	overflow: hidden;
 	background: var(--background-primary);
+	overscroll-behavior: contain;
 }
 
 /* ── Header shell ────────────────────────────────────────── */
@@ -920,6 +921,7 @@ a.oc-uninstall-feedback-link:hover {
 .ai-chat-browser-host {
 	width: 100%;
 	height: 100%;
+	overscroll-behavior: contain;
 }
 
 .ai-chat-browser-webview {
@@ -929,6 +931,7 @@ a.oc-uninstall-feedback-link:hover {
 	min-height: 0;
 	border: none;
 	background: var(--background-primary);
+	overscroll-behavior: contain;
 }
 
 .ai-chat-browser-fallback {

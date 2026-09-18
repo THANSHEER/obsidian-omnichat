@@ -15,6 +15,7 @@ import {
 	stripFrontmatterContent,
 	getCleanUserAgent,
 	getChromeStealthScript,
+	getWebviewScrollFixScript,
 	isAuthUrl,
 } from "../utils";
 
@@ -387,6 +388,10 @@ export class AIChatView extends ItemView {
 
 		wv.src = this.activeUrl;
 
+		wv.addEventListener("mouseenter", () => {
+			if (activeDocument.activeElement !== wv) wv.focus();
+		});
+
 		wv.addEventListener("dom-ready", () => {
 			this.webviewReady = true;
 			this.setLoading(false);
@@ -394,6 +399,7 @@ export class AIChatView extends ItemView {
 			this.lastInteractedAt = Date.now();
 			if (wv.executeJavaScript) {
 				void wv.executeJavaScript(getChromeStealthScript());
+				void wv.executeJavaScript(getWebviewScrollFixScript());
 			}
 			if (this.pendingText) void this.flushPendingText();
 		});
@@ -406,8 +412,14 @@ export class AIChatView extends ItemView {
 			this.setLoading(false);
 			this.fallbackEl?.show();
 		});
-		wv.addEventListener("did-navigate",         () => { this.lastInteractedAt = Date.now(); });
-		wv.addEventListener("did-navigate-in-page", () => { this.lastInteractedAt = Date.now(); });
+		wv.addEventListener("did-navigate",         () => {
+			this.lastInteractedAt = Date.now();
+			if (wv.executeJavaScript) void wv.executeJavaScript(getWebviewScrollFixScript());
+		});
+		wv.addEventListener("did-navigate-in-page", () => {
+			this.lastInteractedAt = Date.now();
+			if (wv.executeJavaScript) void wv.executeJavaScript(getWebviewScrollFixScript());
+		});
 		wv.addEventListener("new-window", (e: Event) => {
 			const ev = e as Event & { url?: string };
 			if (typeof ev.url !== "string") return;

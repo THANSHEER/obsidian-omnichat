@@ -2,6 +2,27 @@
 
 All notable changes to OmniChat are documented in this file.
 
+## [1.7.5] - 2026-09-18
+
+### v1.7.5 - Perplexity Scrolling & Scrollbar Enhancements
+
+Resolves scrolling issues in Perplexity by restoring visible scrollbars, fixing mouse wheel event propagation, and ensuring chats are fully scrollable to the bottom.
+
+### Fixes & Improvements
+
+- **Perplexity & Webview Scroll Restoration**: Fixed issue #29 where Perplexity displayed no scrollbar and would not scroll with the mouse wheel or reach the bottom of long conversations.
+- **Visible Scrollbars**: Automatically injects styling to override sites that hide scrollbars via `::-webkit-scrollbar { display: none }` or `scrollbar-width: none`, ensuring a sleek, draggable scrollbar is always accessible.
+- **Mouse Wheel Scroll Fallback**: Injected an automated wheel listener in embedded webviews that detects when wheel events occur over non-scrollable headers, sticky query bars, or backdrops, seamlessly routing the scroll delta to the active conversation container.
+- **Scroll Chaining Prevention**: Added `overscroll-behavior: contain` to webview browser frames and hosts to prevent gestures from chaining into Obsidian's workspace leaves.
+- **Chat Bottom Clearance**: Added bottom padding clearance for chat containers so the bottom of responses is never obscured behind floating prompt input bars.
+- **Hover Focus Handling**: Automatically focuses the webview when hovering or scrolling over the embedded panel so wheel events are immediately captured by the guest page.
+
+---
+
+**How to Update:** Install from Obsidian Community Plugins.
+
+No breaking changes.
+
 ## [1.7.4] - 2026-08-31
 
 ### v1.7.4 - Secure Google Login via Firefox User-Agent
