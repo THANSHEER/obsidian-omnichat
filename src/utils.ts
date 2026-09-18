@@ -384,6 +384,94 @@ export function getChromeStealthScript(): string {
 }
 
 /**
+ * Injected into embedded webviews to restore scrollbars and guarantee mouse wheel
+ * scrolling works reliably across services like Perplexity that hide scrollbars
+ * or contain non-scrollable overlays.
+ */
+export function getWebviewScrollFixScript(): string {
+	return `
+		(function() {
+			try {
+				var styleId = '__omnichat_scroll_fix';
+				if (!document.getElementById(styleId)) {
+					var style = document.createElement('style');
+					style.id = styleId;
+					style.textContent = \`
+						* {
+							scrollbar-width: thin !important;
+						}
+						::-webkit-scrollbar {
+							width: 8px !important;
+							height: 8px !important;
+							display: block !important;
+						}
+						::-webkit-scrollbar-track {
+							background: transparent !important;
+						}
+						::-webkit-scrollbar-thumb {
+							background: rgba(128, 128, 128, 0.4) !important;
+							border-radius: 4px !important;
+						}
+						::-webkit-scrollbar-thumb:hover {
+							background: rgba(128, 128, 128, 0.7) !important;
+						}
+						main, [role="main"] {
+							padding-bottom: 140px !important;
+						}
+					\`;
+					(document.head || document.documentElement).appendChild(style);
+				}
+
+				if (!window.__omnichat_wheel_listener) {
+					window.__omnichat_wheel_listener = true;
+					window.addEventListener('wheel', function(e) {
+						if (Math.abs(e.deltaY) < 0.5) return;
+
+						var curr = e.target;
+						var canScroll = false;
+
+						while (curr && curr !== document.body && curr !== document.documentElement) {
+							var style = window.getComputedStyle(curr);
+							var overflowY = style.overflowY;
+							if ((overflowY === 'auto' || overflowY === 'scroll') && curr.scrollHeight > curr.clientHeight) {
+								var atTop = curr.scrollTop <= 0 && e.deltaY < 0;
+								var atBottom = (curr.scrollTop + curr.clientHeight >= curr.scrollHeight - 2) && e.deltaY > 0;
+								if (!atTop && !atBottom) {
+									canScroll = true;
+									break;
+								}
+							}
+							curr = curr.parentElement;
+						}
+
+						if (!canScroll) {
+							var candidates = Array.from(document.querySelectorAll('main, [role="main"], div, section'));
+							var best = null;
+							var maxDiff = 0;
+							for (var i = 0; i < candidates.length; i++) {
+								var c = candidates[i];
+								var diff = c.scrollHeight - c.clientHeight;
+								if (diff > 50 && diff > maxDiff) {
+									var s = window.getComputedStyle(c);
+									if (s.overflowY === 'auto' || s.overflowY === 'scroll' || s.overflow === 'auto') {
+										maxDiff = diff;
+										best = c;
+									}
+								}
+							}
+							var scrollEl = best || document.scrollingElement || document.documentElement || document.body;
+							if (scrollEl && scrollEl.scrollHeight > scrollEl.clientHeight) {
+								scrollEl.scrollTop += e.deltaY;
+							}
+						}
+					}, { passive: true });
+				}
+			} catch(e) {}
+		})();
+	`;
+}
+
+/**
  * Safely checks if a hostname matches a domain or is a valid subdomain of it.
  * Avoids substring false positives flagged by security scanners (e.g. CodeQL).
  */
