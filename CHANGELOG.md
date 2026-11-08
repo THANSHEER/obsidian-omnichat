@@ -2,6 +2,35 @@
 
 All notable changes to OmniChat are documented in this file.
 
+## [Unreleased]
+
+### Webview Load Watchdog & Recovery
+
+The panel can no longer get stuck on "Loading <service>…" forever when the embedded
+page never finishes loading.
+
+### Fixes & Improvements
+
+- **Listener registration before first load**: `mountWebview()` now attaches all
+  webview event listeners *before* assigning `src`. The initial load starts as soon as
+  `src` is set, so events fired during that first load (`did-start-loading`,
+  `did-fail-load`, …) could previously be missed, leaving the spinner running and the
+  fallback never appearing.
+- **Load watchdog**: a new 25-second watchdog arms on `did-start-loading` and is cleared
+  on `dom-ready` / `did-stop-loading` / `did-fail-load`. If a load never completes
+  (network stall, proxy interference, hung renderer) the panel leaves the loading state
+  and shows the fallback with a reason instead of spinning indefinitely.
+- **Renderer crash recovery**: `render-process-gone` is now handled — a crashed webview
+  renderer shows the failure state instead of a dead spinner. The event never fires
+  `did-fail-load`, so it previously had no user-visible outcome.
+- **Reload button in the fallback**: the failure panel now includes a `Reload` button
+  (and the failure reason), so recovery no longer requires reloading the whole view.
+  `reloadWebview()` also re-arms the watchdog and hides the fallback.
+- **Timer cleanup**: the watchdog is cleared in `onClose()`, `destroyWebview()` and
+  before re-arming, so no timer outlives the view.
+
+---
+
 ## [1.7.5] - 2026-09-18
 
 ### v1.7.5 - Perplexity Scrolling & Scrollbar Enhancements
