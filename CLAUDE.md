@@ -100,6 +100,7 @@ Uninstall
 - **Desktop only.** Do not add mobile compatibility layers.
 - **No backend, no direct API calls to Geekstash.** Feedback/feature-request/uninstall surveys must never call `api.geekstash.dev` or embed Turnstile inside the plugin — always open the hosted form via `productFormSiteUrl()` (`src/feedback/constants.ts`) in the user's default browser (`window.open(...)`).
 - **No `innerHTML`.** Build DOM imperatively with `createEl` / `createElement`.
+- **No CSS `!important`.** Do not use `!important` in `styles.css` (enforced by `scripts/validate-obsidian.mjs`); use scoped selectors instead.
 - **Avoid** bundled credentials or API keys, and any file access outside `app.vault`.
 - **Sentence-case UI text.** `eslint-plugin-obsidianmd`'s `sentence-case` rule is enforced; the brand allowlist in `eslint.config.mts` (`SENTENCE_CASE_BRANDS`) must be kept in sync with `eslint-plugin-obsidianmd`'s defaults plus this plugin's AI service names.
 

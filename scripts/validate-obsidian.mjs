@@ -156,6 +156,21 @@ for (const file of requiredArtifacts) {
 	}
 }
 
+// 3. Enforce no !important in styles.css
+if (existsSync("styles.css")) {
+	const css = readFileSync("styles.css", "utf8");
+	const importantLines = css
+		.split("\n")
+		.map((line, idx) => ({ line, num: idx + 1 }))
+		.filter(({ line }) => /!important\b/i.test(line));
+	if (importantLines.length > 0) {
+		const sample = importantLines.slice(0, 5).map((m) => `line ${m.num}`).join(", ");
+		error(`styles.css must not use !important (found ${importantLines.length} occurrence(s), e.g. ${sample}). Use specific selectors instead.`);
+	} else {
+		success("styles.css contains no !important declarations.");
+	}
+}
+
 console.log("\n" + "=".repeat(60));
 if (hasErrors) {
 	console.error("❌ Obsidian validation failed! Please fix the errors above before publishing.");

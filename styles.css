@@ -464,17 +464,18 @@
 	margin: 4px 0;
 }
 
+.oc-feedback-modal a.oc-asset-download-btn,
 .oc-asset-download-btn {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 	background: var(--interactive-accent);
-	color: var(--text-on-accent, #ffffff) !important;
+	color: var(--text-on-accent, #ffffff);
 	padding: 6px 14px;
 	border-radius: var(--oc-radius-pill);
 	font-size: var(--font-ui-small);
 	font-weight: 500;
-	text-decoration: none !important;
+	text-decoration: none;
 	box-shadow: 0 2px 8px color-mix(in srgb, var(--interactive-accent) 35%, transparent);
 	transition: all 0.15s ease;
 }
@@ -1971,9 +1972,9 @@ a.oc-uninstall-feedback-link:hover {
 
 /* ── OAuth Login Modal ───────────────────────────────────── */
 
-.oc-oauth-modal-window {
-	width: min(640px, 92vw) !important;
-	max-width: 640px !important;
+.modal.oc-oauth-modal-window {
+	width: min(640px, 92vw);
+	max-width: 640px;
 }
 
 .oc-oauth-modal-content {
@@ -2786,17 +2787,18 @@ pre {
 }
 
 /* High-specificity reset so Obsidian themes never inject inner box styles */
+.ai-chat-view .agent-input-glass textarea.agent-input-box,
 .theme-dark textarea.agent-input-box,
 .theme-light textarea.agent-input-box,
 .agent-input-glass textarea.agent-input-box,
 textarea.agent-input-box {
 	flex: 1;
-	border: none !important;
-	background: transparent !important;
-	background-color: transparent !important;
-	box-shadow: none !important;
-	outline: none !important;
-	border-radius: 0 !important;
+	border: none;
+	background: transparent;
+	background-color: transparent;
+	box-shadow: none;
+	outline: none;
+	border-radius: 0;
 	resize: none;
 	padding: 4px 6px;
 	font-size: var(--font-ui-small);
@@ -2806,11 +2808,14 @@ textarea.agent-input-box {
 	min-height: 24px;
 }
 
+.ai-chat-view .agent-input-glass textarea.agent-input-box:focus,
+.theme-dark textarea.agent-input-box:focus,
+.theme-light textarea.agent-input-box:focus,
 textarea.agent-input-box:focus {
-	border: none !important;
-	background: transparent !important;
-	box-shadow: none !important;
-	outline: none !important;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	outline: none;
 }
 
 textarea.agent-input-box::placeholder {
@@ -2850,8 +2855,9 @@ textarea.agent-input-box::placeholder {
 	box-shadow: none;
 }
 
+.ai-chat-view .agent-send-btn.is-generating,
 .agent-send-btn.is-generating {
-	background: #ef4444 !important;
+	background: #ef4444;
 	box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
 }
 
@@ -3055,14 +3061,15 @@ textarea.agent-input-box::placeholder {
 	height: 11px;
 }
 
+.ai-chat-view input.agent-session-rename-input,
 .agent-session-rename-input {
-	background: var(--background-modifier-form-field) !important;
-	border: 1px solid var(--interactive-accent) !important;
-	border-radius: var(--oc-radius-sm) !important;
-	color: var(--text-normal) !important;
-	font-size: 11px !important;
-	padding: 2px 6px !important;
-	outline: none !important;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--interactive-accent);
+	border-radius: var(--oc-radius-sm);
+	color: var(--text-normal);
+	font-size: 11px;
+	padding: 2px 6px;
+	outline: none;
 	width: 150px;
 }
 
@@ -3229,19 +3236,21 @@ textarea.agent-input-box::placeholder {
 	color: var(--text-faint);
 }
 
+.ai-chat-view input.agent-history-search-input,
 .agent-history-search-input {
 	flex: 1;
-	border: 1px solid var(--oc-glass-border-subtle) !important;
-	background: var(--oc-glass-input) !important;
-	border-radius: var(--oc-radius-pill) !important;
-	padding: 4px 10px !important;
-	font-size: 11px !important;
-	color: var(--text-normal) !important;
-	outline: none !important;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
+	border-radius: var(--oc-radius-pill);
+	padding: 4px 10px;
+	font-size: 11px;
+	color: var(--text-normal);
+	outline: none;
 }
 
+.ai-chat-view input.agent-history-search-input:focus,
 .agent-history-search-input:focus {
-	border-color: var(--interactive-accent) !important;
+	border-color: var(--interactive-accent);
 }
 
 .agent-history-list {
