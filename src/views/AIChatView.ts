@@ -85,6 +85,17 @@ export class AIChatView extends ItemView {
 	private webviewReady      = false;
 	private lastInteractedAt  = Date.now();
 	private idleTimer:        number | null = null;
+	/**
+	 * Watchdog for a page that starts loading but never reports back (network stall,
+	 * proxy interference, or a hung webview renderer). Without it the spinner stays
+	 * on screen forever and the whole app looks frozen.
+	 */
+	private loadTimer:        number | null = null;
+	private fallbackMsgEl:    HTMLElement | null = null;
+	private fallbackRetryEl:  HTMLButtonElement | null = null;
+
+	/** How long a single page load may stay pending before the failure state is shown. */
+	private static readonly LOAD_TIMEOUT_MS = 25_000;
 
 	constructor(leaf: WorkspaceLeaf, plugin: AIChatPlugin, isPrimary = true) {
 		super(leaf);
@@ -111,6 +122,7 @@ export class AIChatView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.stopIdleTimer();
+		this.clearLoadWatchdog();
 		this.destroyWebview();
 		this.contentEl.empty();
 		this.contentEl.removeClass("ai-chat-view");
@@ -215,8 +227,11 @@ export class AIChatView extends ItemView {
 
 		this.fallbackEl = frame.createDiv({ cls: "ai-chat-browser-fallback" });
 		this.fallbackEl.setAttribute("role", "alert");
-		this.fallbackEl.createEl("p", { text: "Could not load the AI service." });
+		this.fallbackMsgEl = this.fallbackEl.createEl("p", { text: "Could not load the AI service." });
 		this.fallbackEl.createEl("p", { text: "Check your connection and ensure Obsidian's web viewer is enabled." });
+		this.fallbackRetryEl = this.fallbackEl.createEl("button", { cls: "mod-cta", text: "Reload" });
+		this.fallbackRetryEl.setAttribute("aria-label", "Reload the AI service");
+		this.fallbackRetryEl.addEventListener("click", () => this.reloadWebview());
 		this.fallbackEl.hide();
 
 		this.loadingEl = frame.createDiv({ cls: "ai-chat-browser-loading" });
@@ -386,14 +401,17 @@ export class AIChatView extends ItemView {
 		// Use host OS + Chrome version; strip Electron/Obsidian so sites see a normal browser UA
 		wv.setAttribute("useragent", getCleanUserAgent(this.plugin.settings.customUserAgent));
 
-		wv.src = this.activeUrl;
-
+		// Listeners are attached *before* assigning src: the initial load starts as soon as
+		// `src` is set, and events fired during that first load (did-start-loading,
+		// did-fail-load, …) are lost if no handler is registered yet. Losing them left the
+		// spinner running forever with no way back.
 		wv.addEventListener("mouseenter", () => {
 			if (activeDocument.activeElement !== wv) wv.focus();
 		});
 
 		wv.addEventListener("dom-ready", () => {
 			this.webviewReady = true;
+			this.clearLoadWatchdog();
 			this.setLoading(false);
 			this.fallbackEl?.hide();
 			this.lastInteractedAt = Date.now();
@@ -403,14 +421,28 @@ export class AIChatView extends ItemView {
 			}
 			if (this.pendingText) void this.flushPendingText();
 		});
-		wv.addEventListener("did-start-loading",    () => this.setLoading(true));
-		wv.addEventListener("did-stop-loading",     () => { this.setLoading(false); this.lastInteractedAt = Date.now(); });
+		wv.addEventListener("did-start-loading",    () => {
+			this.setLoading(true);
+			this.armLoadWatchdog();
+		});
+		wv.addEventListener("did-stop-loading",     () => {
+			this.clearLoadWatchdog();
+			this.setLoading(false);
+			this.lastInteractedAt = Date.now();
+		});
 		wv.addEventListener("did-fail-load",        (e: Event) => {
 			const ev = e as Event & { errorCode?: number; isMainFrame?: boolean };
 			if (ev.errorCode === -3) return;       // load aborted (redirect/cancel) — not a real failure
 			if (ev.isMainFrame === false) return;  // sub-frame / sub-resource failure — ignore
-			this.setLoading(false);
-			this.fallbackEl?.show();
+			this.clearLoadWatchdog();
+			this.showLoadFailure(`Could not load ${this.currentServiceLabel()}.`);
+		});
+		// A crashed or killed webview renderer never fires did-fail-load; without this the
+		// panel would sit on the spinner until the user manually reloads the whole view.
+		wv.addEventListener("render-process-gone", () => {
+			this.clearLoadWatchdog();
+			this.webviewReady = false;
+			this.showLoadFailure(`${this.currentServiceLabel()} stopped responding.`);
 		});
 		wv.addEventListener("did-navigate",         () => {
 			this.lastInteractedAt = Date.now();
@@ -439,12 +471,45 @@ export class AIChatView extends ItemView {
 		});
 
 		this.webview = wv;
+
+		// Start the first load only after every listener above is attached.
+		wv.src = this.activeUrl;
+		this.armLoadWatchdog();
 	}
 
 	private destroyWebview(): void {
+		this.clearLoadWatchdog();
 		this.webview?.remove();
 		this.webview      = null;
 		this.webviewReady = false;
+	}
+
+	// ── Load watchdog ─────────────────────────────────────────
+
+	/** Arms a timer that trips into the failure state if a load never completes. */
+	private armLoadWatchdog(): void {
+		this.clearLoadWatchdog();
+		if (getServiceKey(this.activeUrl) === "ollama") return;
+		this.loadTimer = window.setTimeout(() => {
+			this.loadTimer = null;
+			if (this.webviewReady) return;
+			this.showLoadFailure(`${this.currentServiceLabel()} took too long to load.`);
+		}, AIChatView.LOAD_TIMEOUT_MS);
+	}
+
+	private clearLoadWatchdog(): void {
+		if (this.loadTimer !== null) {
+			window.clearTimeout(this.loadTimer);
+			this.loadTimer = null;
+		}
+	}
+
+	/** Exits the loading state and shows the fallback panel with a reason + Reload button. */
+	private showLoadFailure(message: string): void {
+		this.webviewReady = false;
+		this.setLoading(false);
+		this.fallbackMsgEl?.setText(message);
+		this.fallbackEl?.show();
 	}
 
 	// ── Idle timer ────────────────────────────────────────────
@@ -907,8 +972,10 @@ export class AIChatView extends ItemView {
 		if (!this.webview) return;
 		this.webviewReady = false;
 		this.setLoading(true);
+		this.fallbackEl?.hide();
 		const src = this.webview.src;
 		this.webview.src = src;
+		this.armLoadWatchdog();
 		this.lastInteractedAt = Date.now();
 	}
 
