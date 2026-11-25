@@ -44,6 +44,36 @@ export function registerCommands(plugin: AIChatPlugin): void {
 	});
 
 	plugin.addCommand({
+		id: "open-agent-gui",
+		name: "Open agent GUI",
+		callback: () => void plugin.openAgentGUI(),
+	});
+
+	plugin.addCommand({
+		id: "toggle-dual-mode",
+		name: "Toggle between browser and agent mode",
+		callback: () => void plugin.toggleDualMode(),
+	});
+
+	plugin.addCommand({
+		id: "open-claude-agent",
+		name: "Open Claude Code agent",
+		callback: () => void plugin.openAgentGUI("claude-cli"),
+	});
+
+	plugin.addCommand({
+		id: "open-antigravity-agent",
+		name: "Open Antigravity CLI agent",
+		callback: () => void plugin.openAgentGUI("antigravity-cli"),
+	});
+
+	plugin.addCommand({
+		id: "open-codex-agent",
+		name: "Open OpenAI Codex agent",
+		callback: () => void plugin.openAgentGUI("codex-cli"),
+	});
+
+	plugin.addCommand({
 		id: "send-selection",
 		name: "Send selected text to AI",
 		editorCallback: (editor: Editor) => void plugin.sendSelectionToAI(editor.getSelection()),
@@ -91,5 +121,11 @@ export function registerCommands(plugin: AIChatPlugin): void {
 				void plugin.sendSelectionWithTemplate(selection, t.text);
 			}).open();
 		},
+	});
+
+	plugin.addCommand({
+		id: "show-release-notes",
+		name: "Show release notes",
+		callback: () => void plugin.showReleaseNotesModal(),
 	});
 }

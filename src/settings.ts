@@ -1,11 +1,13 @@
 import { App, Notice, PluginSettingTab, sanitizeHTMLToDom, Setting, type SettingDefinitionItem } from "obsidian";
-import AIChatPlugin from "./main";
+import type AIChatPlugin from "./main";
 import { CHATGPT_URL, SERVICE_META, ServiceKey, SERVICE_URLS } from "./constants";
 import { FeatureRequestModal } from "./modals/FeatureRequestModal";
 import { FeedbackModal } from "./modals/FeedbackModal";
 import { GitHubIssueModal } from "./modals/GitHubIssueModal";
-
+import { renderSiblingPluginsSection } from "./modals/siblingPlugins";
 import { getCleanUserAgent, getServiceKey, normalizeUrl } from "./utils";
+import { AGENT_ENGINES, type AgentEngineKey, type UIMode } from "./types/agent";
+import { detectCli, findExecutable, isDesktopNodeAvailable, getCliWorkingDirectory } from "./services/AgentCliService";
 
 export interface ContextItem {
 	path: string;
@@ -27,6 +29,8 @@ export interface CustomService {
 
 export type ThemeMode = "auto" | "light" | "dark";
 
+export type SettingsTabSection = "common" | "browser" | "agent_gui" | "diagnostics";
+
 export interface DockSettings {
 	webAppUrl: string;
 	openOnStartup: boolean;
@@ -47,6 +51,7 @@ export interface DockSettings {
 	autoClearContext: boolean;
 	contextPrefix: string;
 	theme: ThemeMode;
+	adaptWebviewTheme: boolean;
 	sendSelectionEnabled: boolean;
 	promptTemplates: PromptTemplate[];
 	autoContextOnOpen: boolean;
@@ -60,6 +65,27 @@ export interface DockSettings {
 	customUserAgent: string;
 	/** Last plugin version the user has run — used for first-install welcome and update changelog. */
 	lastSeenVersion: string;
+
+	// ── Dual Mode & Agent Settings ───────────────────────────
+	defaultMode: UIMode;
+	splitPanelMode: UIMode;
+	agentEngine: AgentEngineKey;
+	claudeCliPath: string;
+	antigravityCliPath: string;
+	codexCliPath: string;
+	customCliCommand: string;
+	cliWorkingDirectory: string;
+	useVaultAsCliCwd: boolean;
+	dangerouslySkipPermissions: boolean;
+	cliCustomArgs: string;
+	cliEnvironmentVariables: string;
+	anthropicApiKey: string;
+	anthropicModel: string;
+	openaiApiKey: string;
+	openaiBaseUrl: string;
+	openaiModel: string;
+	showThoughts: boolean;
+	autoScrollChat: boolean;
 }
 
 export const DEFAULT_SETTINGS: DockSettings = {
@@ -82,6 +108,7 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	autoClearContext:    false,
 	contextPrefix:       "",
 	theme:               "auto",
+	adaptWebviewTheme:   true,
 	sendSelectionEnabled: true,
 	promptTemplates: [
 		{ id: "t1", label: "Summarize",   text: "Please summarize the following note concisely:\n\n" },
@@ -97,10 +124,33 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	splitPanelUrl:     SERVICE_URLS.claude,
 	customUserAgent:   "",
 	lastSeenVersion:   "",
+
+	// Dual Mode defaults
+	defaultMode:        "browser",
+	splitPanelMode:     "agent",
+	agentEngine:        "claude-cli",
+	claudeCliPath:      "",
+	antigravityCliPath: "",
+	codexCliPath:       "",
+	customCliCommand:   "",
+	cliWorkingDirectory: "",
+	useVaultAsCliCwd:   true,
+	dangerouslySkipPermissions: false,
+	cliCustomArgs:      "",
+	cliEnvironmentVariables: "",
+	anthropicApiKey:    "",
+	anthropicModel:     "claude-3-7-sonnet-latest",
+	openaiApiKey:       "",
+	openaiBaseUrl:      "https://api.openai.com/v1",
+	openaiModel:        "gpt-4o",
+	showThoughts:       true,
+	autoScrollChat:     true,
 };
 
 export class AIChatSettingTab extends PluginSettingTab {
 	plugin: AIChatPlugin;
+	public activeTab: SettingsTabSection = "common";
+	private diagnosticsReport: HTMLElement | null = null;
 
 	constructor(app: App, plugin: AIChatPlugin) {
 		super(app, plugin);
@@ -108,8 +158,6 @@ export class AIChatSettingTab extends PluginSettingTab {
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
-		// Return empty array to satisfy the linter warning for declarative settings API.
-		// The actual settings are rendered imperatively in renderSettings().
 		return [];
 	}
 
@@ -121,225 +169,92 @@ export class AIChatSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		// ── Support Banner ────────────────────────────────────
-		const funding = (this.plugin.manifest as unknown as { fundingUrl?: string | Record<string, string> })?.fundingUrl;
-		const kofiUrl = typeof funding === "object" && funding !== null
-			? Object.entries(funding).find(([k]) => k.toLowerCase().includes("coffee") || k.toLowerCase().includes("ko-fi") || k.toLowerCase().includes("kofi"))?.[1]
-			: typeof funding === "string" ? funding : undefined;
-		const githubUrl = typeof funding === "object" && funding !== null
-			? Object.entries(funding).find(([k]) => k.toLowerCase().includes("github") || k.toLowerCase().includes("sponsor"))?.[1]
-			: undefined;
+		// ── Settings Navigation Tabs ─────────────────────────
+		const navEl = containerEl.createDiv({ cls: "oc-settings-nav" });
 
-		if (kofiUrl || githubUrl) {
-			const bannerEl = containerEl.createDiv({ cls: "oc-support-banner" });
+		const tabs: { key: SettingsTabSection; label: string; icon: string }[] = [
+			{ key: "common",      label: "General & common", icon: "settings" },
+			{ key: "browser",     label: "Browser AI",       icon: "globe" },
+			{ key: "agent_gui",   label: "Agent CLI & API",  icon: "terminal" },
+			{ key: "diagnostics", label: "Diagnostics & help", icon: "activity" },
+		];
 
-			// Ko-fi inline SVG symbol (official brand asset)
-			const KOFI_SVG = `<svg width="24" height="24" viewBox="0 0 241 194" fill="none" xmlns="http://www.w3.org/2000/svg" class="oc-kofi-icon" aria-hidden="true">
-				<mask id="oc-kofi-mask" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="-1" y="0" width="242" height="194">
-					<path d="M240.469 0.958984H-0.00585938V193.918H240.469V0.958984Z" fill="white"/>
-				</mask>
-				<g mask="url(#oc-kofi-mask)">
-					<path d="M96.1344 193.911C61.1312 193.911 32.6597 178.256 15.9721 149.829C1.19788 124.912 -0.00585938 97.9229 -0.00585938 67.7662C-0.00585938 49.8876 5.37293 34.3215 15.5413 22.7466C24.8861 12.1157 38.1271 5.22907 52.8317 3.35378C70.2858 1.14271 91.9848 0.958984 114.545 0.958984C151.259 0.958984 161.63 1.4088 176.075 2.85328C195.29 4.76026 211.458 11.932 222.824 23.5955C234.368 35.4428 240.469 51.2624 240.469 69.3627V72.9994C240.469 103.885 219.821 129.733 191.046 136.759C188.898 141.827 186.237 146.871 183.089 151.837L183.006 151.964C172.869 167.632 149.042 193.918 103.401 193.918H96.1281L96.1344 193.911Z" fill="white"/>
-					<path d="M174.568 17.9772C160.927 16.6151 151.38 16.1589 114.552 16.1589C90.908 16.1589 70.9008 16.387 54.7644 18.4334C33.3949 21.164 15.2058 37.5285 15.2058 67.7674C15.2058 98.0066 16.796 121.422 29.0741 142.107C42.9425 165.751 66.1302 178.707 96.1412 178.707H103.414C140.242 178.707 160.25 159.156 170.253 143.698C174.574 136.874 177.754 130.058 179.801 123.234C205.947 120.96 225.27 99.3624 225.27 72.9941V69.3577C225.27 40.9432 206.631 21.164 174.574 17.9772H174.568Z" fill="white"/>
-					<path d="M15.1975 67.7674C15.1975 37.5285 33.3866 21.164 54.7559 18.4334C70.8987 16.387 90.906 16.1589 114.544 16.1589C151.372 16.1589 160.919 16.6151 174.559 17.9772C206.617 21.1576 225.255 40.937 225.255 69.3577V72.9941C225.255 99.3687 205.932 120.966 179.786 123.234C177.74 130.058 174.559 136.874 170.238 143.698C160.235 159.156 140.228 178.707 103.4 178.707H96.1264C66.1155 178.707 42.9277 165.751 29.0595 142.107C16.7814 121.422 15.1912 98.4563 15.1912 67.7674" fill="#202020"/>
-					<path d="M32.2469 67.9899C32.2469 97.3168 34.0654 116.184 43.6127 133.689C54.5225 153.924 74.3018 161.653 96.8117 161.653H103.857C133.411 161.653 147.736 147.329 155.693 134.829C159.558 128.462 162.966 121.417 164.784 112.547L166.147 106.864H174.332C192.521 106.864 208.208 92.09 208.208 73.2166V69.8082C208.208 48.6669 195.024 37.5228 172.058 34.7987C159.102 33.6646 151.372 33.2084 114.538 33.2084C89.7602 33.2084 72.0272 33.4364 58.6152 35.4828C39.7483 38.2134 32.2407 48.8951 32.2407 67.9899" fill="white"/>
-					<path d="M166.158 83.6801C166.158 86.4107 168.204 88.4572 171.841 88.4572C183.435 88.4572 189.802 81.8619 189.802 70.9523C189.802 60.0427 183.435 53.2195 171.841 53.2195C168.204 53.2195 166.158 55.2657 166.158 57.9963V83.6866V83.6801Z" fill="#202020"/>
-					<path d="M54.5321 82.3198C54.5321 95.732 62.0332 107.326 71.5807 116.424C77.9478 122.562 87.9515 128.93 94.7685 133.022C96.8147 134.157 98.8611 134.841 101.136 134.841C103.866 134.841 106.134 134.157 107.959 133.022C114.782 128.93 124.779 122.562 130.919 116.424C140.694 107.332 148.195 95.7383 148.195 82.3198C148.195 67.7673 137.286 54.8115 121.599 54.8115C112.28 54.8115 105.912 59.5882 101.136 66.1772C96.8147 59.582 90.2259 54.8115 80.9001 54.8115C64.9855 54.8115 54.5256 67.7673 54.5256 82.3198" fill="#FF5A16"/>
-				</g>
-			</svg>`;
-
-			// GitHub Sponsors heart SVG
-			const GITHUB_SVG = `<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-				<path d="M4.25 2.5c-1.336 0-2.75 1.164-2.75 3 0 2.15 1.58 4.144 3.365 5.682A20.565 20.565 0 008 13.393a20.561 20.561 0 003.135-2.211C12.92 9.644 14.5 7.65 14.5 5.5c0-1.836-1.414-3-2.75-3-1.373 0-2.609.986-3.029 2.456a.75.75 0 01-1.442 0C6.859 3.486 5.623 2.5 4.25 2.5z"/>
-			</svg>`;
-
-			// ── Sponsor buttons row ───────────────────────────────────
-			const btnsEl = bannerEl.createDiv({ cls: "oc-support-banner-btns" });
-
-			if (kofiUrl) {
-				const kofiBtn = btnsEl.createEl("a", {
-					cls: "oc-support-banner-btn oc-support-kofi-btn",
-					href: kofiUrl,
-					attr: { target: "_blank", rel: "noopener noreferrer", "aria-label": "Support on Ko-fi" },
-				});
-				kofiBtn.appendChild(sanitizeHTMLToDom(KOFI_SVG));
-				kofiBtn.createSpan({ text: "Support the project" });
-				kofiBtn.addEventListener("click", (e) => {
-					e.preventDefault();
-					window.open(kofiUrl, "_blank");
-				});
-			}
-
-			if (githubUrl) {
-				const ghBtn = btnsEl.createEl("a", {
-					cls: "oc-support-banner-btn oc-support-github-btn",
-					href: githubUrl,
-					attr: { target: "_blank", rel: "noopener noreferrer", "aria-label": "Sponsor on GitHub" },
-				});
-				ghBtn.appendChild(sanitizeHTMLToDom(GITHUB_SVG));
-				ghBtn.createSpan({ text: "GitHub Sponsors" });
-				ghBtn.addEventListener("click", (e) => {
-					e.preventDefault();
-					window.open(githubUrl, "_blank");
-				});
-			}
-
-			// ── Divider ──────────────────────────────────────────────
-			bannerEl.createDiv({ cls: "oc-support-banner-divider" });
-
-			// ── Feedback text-link row ───────────────────────────────
-			const linksEl = bannerEl.createDiv({ cls: "oc-support-banner-links" });
-
-			const feedbackLink = linksEl.createEl("a", {
-				text: "Give feedback",
-				cls: "oc-support-text-link",
-				attr: { role: "button" },
+		for (const t of tabs) {
+			const btn = navEl.createEl("button", {
+				cls: `oc-settings-tab-btn ${this.activeTab === t.key ? "is-active mod-cta" : ""}`,
+				text: t.label,
 			});
-			feedbackLink.addEventListener("click", (e) => {
-				e.preventDefault();
-				new FeedbackModal(this.app, "settings").open();
-			});
-
-			linksEl.createSpan({ cls: "oc-support-link-sep", text: "·" });
-
-			const featureLink = linksEl.createEl("a", {
-				text: "Request a feature",
-				cls: "oc-support-text-link",
-				attr: { role: "button" },
-			});
-			featureLink.addEventListener("click", (e) => {
-				e.preventDefault();
-				new FeatureRequestModal(this.app).open();
-			});
-
-			linksEl.createSpan({ cls: "oc-support-link-sep", text: "·" });
-
-			const issuesLink = linksEl.createEl("a", {
-				text: "GitHub issues",
-				cls: "oc-support-text-link",
-				attr: { role: "button" },
-			});
-			issuesLink.addEventListener("click", (e) => {
-				e.preventDefault();
-				new GitHubIssueModal(this.app).open();
+			btn.addEventListener("click", () => {
+				this.activeTab = t.key;
+				this.renderSettings();
 			});
 		}
 
-		// ── AI Services ───────────────────────────────────────
-		new Setting(containerEl).setName("AI services").setHeading();
-
-		for (const svc of SERVICE_META) {
-			new Setting(containerEl)
-				.setName(svc.label)
-				.setDesc("Show in the service selector.")
-				.addToggle(t =>
-					t.setValue(this.plugin.settings[svc.enableKey])
-						.onChange(async v => {
-							this.plugin.settings[svc.enableKey] = v;
-							await this.plugin.saveSettings();
-							this.plugin.rerenderOpenViews();
-						}),
-				);
+		// Render the active section
+		switch (this.activeTab) {
+			case "common":
+				this.renderCommonSection(containerEl);
+				break;
+			case "browser":
+				this.renderBrowserSection(containerEl);
+				break;
+			case "agent_gui":
+				this.renderAgentSection(containerEl);
+				break;
+			case "diagnostics":
+				this.renderDiagnosticsSection(containerEl);
+				break;
 		}
+	}
+
+	// ═══════════════════════════════════════════════════════════
+	// ── PART 1: COMMON & GENERAL SETTINGS ─────────────────────
+	// ═══════════════════════════════════════════════════════════
+	private renderCommonSection(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName("Interface & modes").setHeading();
 
 		new Setting(containerEl)
-			.setName("Ollama API URL")
-			.setDesc("The base URL for your local or remote ollama instance (default: http://127.0.0.1:11434).")
-			.addText(t =>
-				t.setPlaceholder("127.0.0.1:11434")
-					.setValue(this.plugin.settings.ollamaApiUrl)
-					.onChange(async v => {
-						this.plugin.settings.ollamaApiUrl = v.trim() || "http://127.0.0.1:11434";
-						await this.plugin.saveSettings();
-						this.plugin.rerenderOpenViews();
-					}),
-			);
-
-		// ── General ───────────────────────────────────────────
-		new Setting(containerEl).setName("Appearance & behaviour").setHeading();
-
-		new Setting(containerEl)
-			.setName("Theme")
-			.setDesc("Header colour scheme — auto follows Obsidian.")
+			.setName("Default view mode")
+			.setDesc("Choose whether OmniChat opens in browser AI mode or agent CLI/API GUI mode.")
 			.addDropdown(d => {
-				d.addOption("auto",  "Auto");
-				d.addOption("light", "Light");
-				d.addOption("dark",  "Dark");
-				d.setValue(this.plugin.settings.theme)
+				d.addOption("browser", "Browser AI (web embedding)");
+				d.addOption("agent", "Agent CLI & API (coding GUI)");
+				d.setValue(this.plugin.settings.defaultMode)
 					.onChange(async v => {
-						this.plugin.settings.theme = v as ThemeMode;
+						this.plugin.settings.defaultMode = v as UIMode;
 						await this.plugin.saveSettings();
 						this.plugin.rerenderOpenViews();
 					});
 			});
 
-		new Setting(containerEl)
-			.setName("Default service")
-			.setDesc("Which AI opens when the portal first loads.")
-			.addDropdown(d => {
-				for (const m of SERVICE_META) d.addOption(m.key, m.label);
-				d.setValue(getServiceKey(this.plugin.settings.webAppUrl) ?? SERVICE_META[0].key)
-					.onChange(async v => {
-						this.plugin.settings.webAppUrl = SERVICE_URLS[v as ServiceKey];
-						await this.plugin.saveSettings();
-						this.plugin.updateStatusBar();
-						this.plugin.rerenderOpenViews();
-					});
-			});
-
-		new Setting(containerEl)
-			.setName("Default split panel service")
-			.setDesc("Which AI opens in the split panel by default.")
-			.addDropdown(d => {
-				for (const m of SERVICE_META) d.addOption(m.key, m.label);
-				d.setValue(getServiceKey(this.plugin.settings.splitPanelUrl) ?? SERVICE_META[0].key)
-					.onChange(async v => {
-						this.plugin.settings.splitPanelUrl = SERVICE_URLS[v as ServiceKey];
-						await this.plugin.saveSettings();
-						this.plugin.rerenderOpenViews();
-					});
-			});
-
-		new Setting(containerEl)
-			.setName("Open on startup")
-			.setDesc("Restore the portal when Obsidian loads.")
-			.addToggle(t =>
-				t.setValue(this.plugin.settings.openOnStartup)
-					.onChange(async v => {
-						this.plugin.settings.openOnStartup = v;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName("Auto-refresh (minutes)")
-			.setDesc("Silently reload after this many idle minutes. 0 = off.")
-			.addText(t =>
-				t.setPlaceholder(String(DEFAULT_SETTINGS.autoRefreshMinutes))
-					.setValue(String(this.plugin.settings.autoRefreshMinutes))
-					.onChange(async v => {
-						const n = parseInt(v, 10);
-						if (!isNaN(n) && n >= 0) {
-							this.plugin.settings.autoRefreshMinutes = n;
-							await this.plugin.saveSettings();
-							this.plugin.rerenderOpenViews();
-						}
-					}),
-			);
+		new Setting(containerEl).setName("Split panel").setHeading();
 
 		new Setting(containerEl)
 			.setName("Open split panel")
-			.setDesc("Open a second portal panel — each remembers its own service.")
+			.setDesc("Open a second OmniChat panel — independently toggle between browser and agent modes.")
 			.addButton(btn =>
-				btn.setButtonText("Open").onClick(() => void this.plugin.openSplitPanel()),
+				btn.setButtonText("Open panel").onClick(() => void this.plugin.openSplitPanel()),
 			);
 
-		// ── Context & Notes ───────────────────────────────────
-		new Setting(containerEl).setName("Context & notes").setHeading();
+		new Setting(containerEl)
+			.setName("Default split panel mode")
+			.setDesc("Mode for the split panel when first opened.")
+			.addDropdown(d => {
+				d.addOption("browser", "Browser AI");
+				d.addOption("agent", "Agent CLI & API GUI");
+				d.setValue(this.plugin.settings.splitPanelMode)
+					.onChange(async v => {
+						this.plugin.settings.splitPanelMode = v as UIMode;
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					});
+			});
+
+		new Setting(containerEl).setName("Context & note injection").setHeading();
 
 		new Setting(containerEl)
 			.setName("Send selected text to AI")
-			.setDesc("Enable injecting editor selections into the active AI service.")
+			.setDesc("Enable injecting editor selections into the active AI service or agent.")
 			.addToggle(t =>
 				t.setValue(this.plugin.settings.sendSelectionEnabled)
 					.onChange(async v => {
@@ -350,7 +265,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Auto-add active note on open")
-			.setDesc("Add the current note to context when the portal opens.")
+			.setDesc("Add the current note to context when OmniChat opens.")
 			.addToggle(t =>
 				t.setValue(this.plugin.settings.autoContextOnOpen)
 					.onChange(async v => {
@@ -372,7 +287,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Auto-clear context after send")
-			.setDesc("Clear all context items after clicking add.")
+			.setDesc("Clear context items automatically after clicking send.")
 			.addToggle(t =>
 				t.setValue(this.plugin.settings.autoClearContext)
 					.onChange(async v => {
@@ -409,9 +324,53 @@ export class AIChatSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		// Prompt Templates
+		new Setting(containerEl).setName("Prompt templates").setHeading();
+
+		new Setting(containerEl)
+			.setName("Add template")
+			.setDesc("Quick prompts with variable tags: {{selection}}, {{title}}, {{path}}, {{tags}}, {{date}}.")
+			.addButton(btn =>
+				btn.setButtonText("+ add").setCta().onClick(async () => {
+					this.plugin.settings.promptTemplates.push({ id: Date.now().toString(), label: "New template", text: "" });
+					await this.plugin.saveSettings();
+					this.renderSettings();
+				}),
+			);
+
+		for (const tmpl of this.plugin.settings.promptTemplates) {
+			const titleRow = new Setting(containerEl)
+				.setName(tmpl.label || "Template")
+				.addText(t =>
+					t.setPlaceholder("Title").setValue(tmpl.label)
+						.onChange(async v => { tmpl.label = v; await this.plugin.saveSettings(); }),
+				)
+				.addExtraButton(btn =>
+					btn.setIcon("trash").setTooltip("Delete template").onClick(async () => {
+						this.plugin.settings.promptTemplates = this.plugin.settings.promptTemplates.filter(t => t.id !== tmpl.id);
+						await this.plugin.saveSettings();
+						this.renderSettings();
+					}),
+				);
+			titleRow.settingEl.addClass("vc-template-title-row");
+
+			const promptRow = new Setting(containerEl)
+				.addTextArea(t => {
+					t.setPlaceholder("Prompt text…").setValue(tmpl.text)
+						.onChange(async v => { tmpl.text = v; await this.plugin.saveSettings(); });
+					t.inputEl.rows = 3;
+					t.inputEl.addClass("vc-template-textarea");
+					return t;
+				});
+			promptRow.settingEl.addClass("vc-template-prompt-row");
+		}
+
+		// Save responses to vault
+		new Setting(containerEl).setName("Vault saving & formatting").setHeading();
+
 		new Setting(containerEl)
 			.setName("Save folder")
-			.setDesc("Vault folder for notes created via the save buttons.")
+			.setDesc("Vault folder where notes created via the save button are stored.")
 			.addText(t =>
 				t.setPlaceholder("AI notes")
 					.setValue(this.plugin.settings.saveNoteFolder)
@@ -421,10 +380,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 					}),
 			)
 			.addButton(btn =>
-				btn.setButtonText("Open folder").setTooltip("Reveal in file explorer").onClick(() => {
-					const folderPath = this.plugin.settings.saveNoteFolder.trim() || "AI Notes";
-					const abstract   = this.app.vault.getAbstractFileByPath(folderPath);
-					if (!abstract) { new Notice(`Folder "${folderPath}" does not exist yet — save a note first.`); return; }
+				btn.setButtonText("Open folder").onClick(() => {
+					const folderPath = this.plugin.settings.saveNoteFolder.trim() || "AI notes";
+					const abstract = this.app.vault.getAbstractFileByPath(folderPath);
+					if (!abstract) { new Notice(`Folder "${folderPath}" does not exist yet.`); return; }
 					const explorer = this.app.workspace.getLeavesOfType("file-explorer")[0];
 					if (explorer) {
 						void this.app.workspace.revealLeaf(explorer);
@@ -436,7 +395,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Organise saves by date")
-			.setDesc("Save into daily subfolders — e.g. AI notes/2026-06-01/response.md.")
+			.setDesc("Save into daily subfolders (e.g. AI notes/2026-09-27/response.md).")
 			.addToggle(t =>
 				t.setValue(this.plugin.settings.useDateSubfolder)
 					.onChange(async v => {
@@ -456,14 +415,100 @@ export class AIChatSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		// Appearance & Startup
+		new Setting(containerEl).setName("Appearance & startup").setHeading();
 
-		// ── Custom services ───────────────────────────────────
+		new Setting(containerEl)
+			.setName("Theme")
+			.setDesc("Header and Chrome color scheme — auto follows Obsidian.")
+			.addDropdown(d => {
+				d.addOption("auto",  "Auto");
+				d.addOption("light", "Light");
+				d.addOption("dark",  "Dark");
+				d.setValue(this.plugin.settings.theme)
+					.onChange(async v => {
+						this.plugin.settings.theme = v as ThemeMode;
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					});
+			});
 
-		new Setting(containerEl).setName("Custom services").setHeading();
+		new Setting(containerEl)
+			.setName("Open on startup")
+			.setDesc("Restore OmniChat when Obsidian starts.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.openOnStartup)
+					.onChange(async v => {
+						this.plugin.settings.openOnStartup = v;
+						await this.plugin.saveSettings();
+					}),
+			);
+	}
+
+	// ═══════════════════════════════════════════════════════════
+	// ── PART 2: DEDICATED BROWSER AI SETTINGS ─────────────────
+	// ═══════════════════════════════════════════════════════════
+	private renderBrowserSection(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName("AI web services").setHeading();
+
+		new Setting(containerEl)
+			.setName("Adapt web AI theme to Obsidian")
+			.setDesc("Sync Obsidian's active color palette and scrollbars into embedded web AI services.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.adaptWebviewTheme)
+					.onChange(async v => {
+						this.plugin.settings.adaptWebviewTheme = v;
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Default browser service")
+			.setDesc("Which web AI opens when browser mode first loads.")
+			.addDropdown(d => {
+				for (const m of SERVICE_META) d.addOption(m.key, m.label);
+				d.setValue(getServiceKey(this.plugin.settings.webAppUrl) ?? SERVICE_META[0].key)
+					.onChange(async v => {
+						this.plugin.settings.webAppUrl = SERVICE_URLS[v as ServiceKey];
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName("Default split panel service")
+			.setDesc("Which web AI opens in the split panel in browser mode.")
+			.addDropdown(d => {
+				for (const m of SERVICE_META) d.addOption(m.key, m.label);
+				d.setValue(getServiceKey(this.plugin.settings.splitPanelUrl) ?? SERVICE_META[0].key)
+					.onChange(async v => {
+						this.plugin.settings.splitPanelUrl = SERVICE_URLS[v as ServiceKey];
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					});
+			});
+
+		for (const svc of SERVICE_META) {
+			new Setting(containerEl)
+				.setName(svc.label)
+				.setDesc("Show in the browser service selector.")
+				.addToggle(t =>
+					t.setValue(this.plugin.settings[svc.enableKey])
+						.onChange(async v => {
+							this.plugin.settings[svc.enableKey] = v;
+							await this.plugin.saveSettings();
+							this.plugin.rerenderOpenViews();
+						}),
+				);
+		}
+
+		// Custom Services
+		new Setting(containerEl).setName("Custom web services").setHeading();
 
 		new Setting(containerEl)
 			.setName("Add custom service")
-			.setDesc("Add any AI tool by URL — it appears in the service selector.")
+			.setDesc("Embed any web AI or app URL in the browser portal.")
 			.addButton(btn =>
 				btn.setButtonText("+ add").setCta().onClick(async () => {
 					this.plugin.settings.customServices.push({ id: Date.now().toString(), label: "My AI tool", url: "https://" });
@@ -480,11 +525,9 @@ export class AIChatSettingTab extends PluginSettingTab {
 						.onChange(async v => { svc.label = v; await this.plugin.saveSettings(); this.plugin.rerenderOpenViews(); }),
 				)
 				.addText(t => {
-					t.setPlaceholder("Enter URL…").setValue(svc.url)
+					t.setPlaceholder("URL").setValue(svc.url)
 						.onChange(async v => {
 							const normalized = normalizeUrl(v);
-							const duplicate  = this.plugin.settings.customServices.some(s => s.id !== svc.id && s.url === normalized);
-							if (duplicate) { new Notice("A custom service with this URL already exists."); return; }
 							svc.url = normalized;
 							await this.plugin.saveSettings();
 							this.plugin.rerenderOpenViews();
@@ -493,8 +536,6 @@ export class AIChatSettingTab extends PluginSettingTab {
 					return t;
 				})
 				.addButton(btn => {
-					// Apply warning colour without using the deprecated setWarning() or the
-					// v1.13-gated setDestructive() — both are unavailable at minAppVersion 1.7.2.
 					btn.buttonEl.addClass("mod-warning");
 					btn.setIcon("trash").setTooltip("Remove").onClick(async () => {
 						this.plugin.settings.customServices = this.plugin.settings.customServices.filter(s => s.id !== svc.id);
@@ -506,61 +547,28 @@ export class AIChatSettingTab extends PluginSettingTab {
 			row.settingEl.addClass("vc-custom-svc-row");
 		}
 
-		// ── Prompt templates ──────────────────────────────────
-		new Setting(containerEl).setName("Prompt templates").setHeading();
+		// Browser Emulation & Session
+		new Setting(containerEl).setName("Browser emulation & session").setHeading();
 
 		new Setting(containerEl)
-			.setName("Add template")
-			.setDesc("One-click prompts that inject text into the active AI service. Variables: {{selection}}, {{title}}, {{path}}, {{tags}}, {{date}}.")
-			.addButton(btn =>
-				btn.setButtonText("+ add").setCta().onClick(async () => {
-					this.plugin.settings.promptTemplates.push({ id: Date.now().toString(), label: "New template", text: "" });
-					await this.plugin.saveSettings();
-					this.renderSettings();
-				}),
-			);
-
-		if (!this.plugin.settings.promptTemplates.length) {
-			new Setting(containerEl).setDesc("No templates yet — add one to get started.");
-		}
-
-		this.plugin.settings.promptTemplates.forEach((tmpl, index) => {
-			// Title row — editable label with a delete button.
-			const titleRow = new Setting(containerEl)
-				.setName(`Template ${index + 1}`)
-				.addText(t =>
-					t.setPlaceholder("Title (e.g. Summarise)").setValue(tmpl.label)
-						.onChange(async v => { tmpl.label = v; await this.plugin.saveSettings(); }),
-				)
-				.addExtraButton(btn =>
-					btn.setIcon("trash").setTooltip("Delete template").onClick(async () => {
-						this.plugin.settings.promptTemplates = this.plugin.settings.promptTemplates.filter(t => t.id !== tmpl.id);
-						await this.plugin.saveSettings();
-						this.renderSettings();
+			.setName("Auto-refresh (minutes)")
+			.setDesc("Silently reload after this many idle minutes. 0 = off.")
+			.addText(t =>
+				t.setPlaceholder(String(DEFAULT_SETTINGS.autoRefreshMinutes))
+					.setValue(String(this.plugin.settings.autoRefreshMinutes))
+					.onChange(async v => {
+						const n = parseInt(v, 10);
+						if (!isNaN(n) && n >= 0) {
+							this.plugin.settings.autoRefreshMinutes = n;
+							await this.plugin.saveSettings();
+							this.plugin.rerenderOpenViews();
+						}
 					}),
-				);
-			titleRow.settingEl.addClass("vc-template-title-row");
-
-			// Prompt row — full-width textarea for the template body.
-			const promptRow = new Setting(containerEl)
-				.setName("Prompt")
-				.setDesc("Text inserted into the AI input.")
-				.addTextArea(t => {
-					t.setPlaceholder("Prompt text…").setValue(tmpl.text)
-						.onChange(async v => { tmpl.text = v; await this.plugin.saveSettings(); });
-					t.inputEl.rows = 4;
-					t.inputEl.addClass("vc-template-textarea");
-					return t;
-				});
-			promptRow.settingEl.addClass("vc-template-prompt-row");
-		});
-
-		// ── Browser & Authentication ──────────────────────────
-		new Setting(containerEl).setName("Browser & authentication").setHeading();
+			);
 
 		new Setting(containerEl)
 			.setName("Custom user-agent")
-			.setDesc("Overrides the browser user-agent string. Leave blank to use authentic Chrome desktop browser emulation.")
+			.setDesc("Overrides the browser user-agent string. Leave blank for Chrome desktop emulation.")
 			.addText(t => {
 				t.setPlaceholder(getCleanUserAgent())
 					.setValue(this.plugin.settings.customUserAgent)
@@ -586,7 +594,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Clear AI browser data")
-			.setDesc("Clears cookies, cache, and storage for embedded AI web sessions. Useful if a login or session becomes corrupted.")
+			.setDesc("Clears cookies, cache, and session storage for embedded AI web sessions.")
 			.addButton(btn => {
 				btn.setButtonText("Clear cache & cookies");
 				btn.buttonEl.addClass("mod-warning");
@@ -600,5 +608,452 @@ export class AIChatSettingTab extends PluginSettingTab {
 					}
 				});
 			});
+	}
+
+	// ═══════════════════════════════════════════════════════════
+	// ── PART 3: DEDICATED AGENT CLI & API SETTINGS ────────────
+	// ═══════════════════════════════════════════════════════════
+	private renderAgentSection(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName("Active agent engine").setHeading();
+
+		new Setting(containerEl)
+			.setName("Default agent engine")
+			.setDesc("Which CLI or API engine powers the native agent studio.")
+			.addDropdown(d => {
+				for (const eng of AGENT_ENGINES) {
+					d.addOption(eng.key, `${eng.label} (${eng.badge})`);
+				}
+				d.setValue(this.plugin.settings.agentEngine)
+					.onChange(async v => {
+						this.plugin.settings.agentEngine = v as AgentEngineKey;
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					});
+			});
+
+		// CLI Configurations
+		new Setting(containerEl).setName("CLI engine configuration").setHeading();
+
+		new Setting(containerEl)
+			.setName("Auto-detect CLI paths")
+			.setDesc("Automatically scan your system for Claude Code, Antigravity, and Codex CLI executables.")
+			.addButton(btn =>
+				btn.setButtonText("Scan & auto-detect").setCta().onClick(async () => {
+					btn.setButtonText("Scanning…");
+					btn.setDisabled(true);
+
+					const claudeRes = await detectCli("claude", this.plugin.settings.claudeCliPath);
+					const agyRes = await detectCli("agy", this.plugin.settings.antigravityCliPath);
+					const codexRes = await detectCli("codex", this.plugin.settings.codexCliPath);
+
+					if (claudeRes.found && !this.plugin.settings.claudeCliPath) {
+						this.plugin.settings.claudeCliPath = claudeRes.path;
+					}
+					if (agyRes.found && !this.plugin.settings.antigravityCliPath) {
+						this.plugin.settings.antigravityCliPath = agyRes.path;
+					}
+					if (codexRes.found && !this.plugin.settings.codexCliPath) {
+						this.plugin.settings.codexCliPath = codexRes.path;
+					}
+
+					await this.plugin.saveSettings();
+					btn.setButtonText("Scan & auto-detect");
+					btn.setDisabled(false);
+					this.renderSettings();
+
+					new Notice(
+						`Scan complete: Claude (${claudeRes.found ? "Found" : "Missing"}), Antigravity (${agyRes.found ? "Found" : "Missing"}), Codex (${codexRes.found ? "Found" : "Missing"})`,
+					);
+				}),
+			);
+
+		new Setting(containerEl)
+			.setName("Claude Code CLI path")
+			.setDesc("Path to Claude binary. Leave blank to auto-detect from path.")
+			.addText(t =>
+				t.setPlaceholder(findExecutable("claude") || "claude")
+					.setValue(this.plugin.settings.claudeCliPath)
+					.onChange(async v => {
+						this.plugin.settings.claudeCliPath = v.trim();
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Antigravity CLI path")
+			.setDesc("Path to agy binary. Leave blank to auto-detect from path.")
+			.addText(t =>
+				t.setPlaceholder(findExecutable("agy") || "agy")
+					.setValue(this.plugin.settings.antigravityCliPath)
+					.onChange(async v => {
+						this.plugin.settings.antigravityCliPath = v.trim();
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("OpenAI Codex CLI path")
+			.setDesc("Path to Codex or opencode executable.")
+			.addText(t =>
+				t.setPlaceholder("Codex")
+					.setValue(this.plugin.settings.codexCliPath)
+					.onChange(async v => {
+						this.plugin.settings.codexCliPath = v.trim();
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Custom CLI command")
+			.setDesc("Command string used when the custom agent CLI engine is selected.")
+			.addText(t =>
+				t.setPlaceholder("Enter command…")
+					.setValue(this.plugin.settings.customCliCommand)
+					.onChange(async v => {
+						this.plugin.settings.customCliCommand = v.trim();
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Use vault as working directory")
+			.setDesc("Run the CLI in the root of your Obsidian vault so agents can read and write notes directly.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.useVaultAsCliCwd)
+					.onChange(async v => {
+						this.plugin.settings.useVaultAsCliCwd = v;
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+						this.renderSettings();
+					}),
+			);
+
+		if (!this.plugin.settings.useVaultAsCliCwd) {
+			new Setting(containerEl)
+				.setName("Custom working directory")
+				.setDesc("Absolute path to the working directory for CLI executions.")
+				.addText(t =>
+					t.setPlaceholder("Enter directory path…")
+						.setValue(this.plugin.settings.cliWorkingDirectory)
+						.onChange(async v => {
+							this.plugin.settings.cliWorkingDirectory = v.trim();
+							await this.plugin.saveSettings();
+							this.plugin.rerenderOpenViews();
+						}),
+				);
+		}
+
+		new Setting(containerEl)
+			.setName("Auto-approve tool permissions")
+			.setDesc("Pass --dangerously-skip-permissions to CLI agents for autonomous tool execution.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.dangerouslySkipPermissions)
+					.onChange(async v => {
+						this.plugin.settings.dangerouslySkipPermissions = v;
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Custom CLI arguments")
+			.setDesc("Extra arguments passed to the CLI process.")
+			.addText(t =>
+				t.setPlaceholder("Enter arguments…")
+					.setValue(this.plugin.settings.cliCustomArgs)
+					.onChange(async v => {
+						this.plugin.settings.cliCustomArgs = v.trim();
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("CLI environment variables")
+			.setDesc("Additional environment variables injected into the process (one key=value per line).")
+			.addTextArea(t =>
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
+				t.setPlaceholder("ANTHROPIC_API_KEY=sk-...\nOPENAI_API_KEY=sk-...")
+					.setValue(this.plugin.settings.cliEnvironmentVariables)
+					.onChange(async v => {
+						this.plugin.settings.cliEnvironmentVariables = v;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		// Direct API Providers
+		new Setting(containerEl).setName("Direct API providers").setHeading();
+
+		new Setting(containerEl)
+			.setName("Anthropic API key")
+			.setDesc("API key for direct streaming with Claude 3.7 / 3.5 Sonnet.")
+			.addText(t => {
+				t.setPlaceholder("Enter API key…")
+					.setValue(this.plugin.settings.anthropicApiKey)
+					.onChange(async v => {
+						this.plugin.settings.anthropicApiKey = v.trim();
+						await this.plugin.saveSettings();
+					});
+				t.inputEl.type = "password";
+				return t;
+			});
+
+		new Setting(containerEl)
+			.setName("Anthropic model")
+			.setDesc("Model identifier for Anthropic API.")
+			.addText(t =>
+				t.setPlaceholder("Enter model name…")
+					.setValue(this.plugin.settings.anthropicModel)
+					.onChange(async v => {
+						this.plugin.settings.anthropicModel = v.trim() || "claude-3-7-sonnet-latest";
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("OpenAI API key")
+			.setDesc("API key for OpenAI GPT-4o, Codex or compatible endpoint.")
+			.addText(t => {
+				t.setPlaceholder("Enter API key…")
+					.setValue(this.plugin.settings.openaiApiKey)
+					.onChange(async v => {
+						this.plugin.settings.openaiApiKey = v.trim();
+						await this.plugin.saveSettings();
+					});
+				t.inputEl.type = "password";
+				return t;
+			});
+
+		new Setting(containerEl)
+			.setName("OpenAI base URL")
+			.setDesc("Base URL for OpenAI or compatible endpoints (e.g. DeepSeek, Groq, LM Studio).")
+			.addText(t =>
+				t.setPlaceholder("Enter base URL…")
+					.setValue(this.plugin.settings.openaiBaseUrl)
+					.onChange(async v => {
+						this.plugin.settings.openaiBaseUrl = v.trim() || "https://api.openai.com/v1";
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("OpenAI model")
+			.setDesc("Model identifier for OpenAI API.")
+			.addText(t =>
+				t.setPlaceholder("Enter model name…")
+					.setValue(this.plugin.settings.openaiModel)
+					.onChange(async v => {
+						this.plugin.settings.openaiModel = v.trim() || "gpt-4o";
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Ollama API URL")
+			.setDesc("Base URL for your local or remote Ollama instance (default: http://127.0.0.1:11434).")
+			.addText(t =>
+				t.setPlaceholder("Enter Ollama URL…")
+					.setValue(this.plugin.settings.ollamaApiUrl)
+					.onChange(async v => {
+						this.plugin.settings.ollamaApiUrl = v.trim() || "http://127.0.0.1:11434";
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+					}),
+			);
+
+		// Agent GUI Experience
+		new Setting(containerEl).setName("Agent GUI display & experience").setHeading();
+
+		new Setting(containerEl)
+			.setName("Show reasoning & thoughts")
+			.setDesc("Display collapsible reasoning thought blocks from thinking models and CLI agents.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.showThoughts)
+					.onChange(async v => {
+						this.plugin.settings.showThoughts = v;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Auto-scroll chat")
+			.setDesc("Automatically scroll down as new tokens and responses stream in.")
+			.addToggle(t =>
+				t.setValue(this.plugin.settings.autoScrollChat)
+					.onChange(async v => {
+						this.plugin.settings.autoScrollChat = v;
+						await this.plugin.saveSettings();
+					}),
+			);
+	}
+
+	// ═══════════════════════════════════════════════════════════
+	// ── PART 4: DIAGNOSTICS & HELP ────────────────────────────
+	// ═══════════════════════════════════════════════════════════
+	private renderDiagnosticsSection(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName("System & CLI health check").setHeading();
+
+		new Setting(containerEl)
+			.setName("Run diagnostics")
+			.setDesc("Verify Node.js runtime, CLI installations, paths, and environment.")
+			.addButton(btn =>
+				btn.setButtonText("Run diagnostics").setCta().onClick(async () => {
+					btn.setButtonText("Testing…");
+					btn.setDisabled(true);
+					await this.executeDiagnostics();
+					btn.setButtonText("Re-run diagnostics");
+					btn.setDisabled(false);
+				}),
+			);
+
+		this.diagnosticsReport = containerEl.createDiv({ cls: "oc-diagnostics-report" });
+		void this.executeDiagnostics();
+
+		// Support Banner
+		new Setting(containerEl).setName("Support & community").setHeading();
+		this.renderSupportBanner(containerEl);
+
+		// Other plugins from creator
+		renderSiblingPluginsSection(containerEl);
+	}
+
+	private async executeDiagnostics(): Promise<void> {
+		if (!this.diagnosticsReport) return;
+		this.diagnosticsReport.empty();
+
+		const card = this.diagnosticsReport.createDiv({ cls: "oc-diag-card" });
+		const title = card.createDiv({ cls: "oc-diag-header" });
+		title.createDiv({ cls: "oc-diag-title", text: "OmniChat environment diagnostics" });
+
+		const list = card.createEl("ul", { cls: "oc-diag-list" });
+
+		// Node runtime
+		const nodeAvail = isDesktopNodeAvailable();
+		const nodeItem = list.createEl("li");
+		nodeItem.createSpan({ cls: `oc-diag-badge ${nodeAvail ? "is-ok" : "is-error"}`, text: nodeAvail ? "PASS" : "FAIL" });
+		nodeItem.createSpan({ text: ` Desktop Node environment: ${nodeAvail ? "Available (Electron)" : "Not available (Mobile or Sandbox)"}` });
+
+		// Vault root
+		const vaultPath = getCliWorkingDirectory(this.app, this.plugin.settings);
+		const vaultItem = list.createEl("li");
+		vaultItem.createSpan({ cls: "oc-diag-badge is-ok", text: "INFO" });
+		vaultItem.createSpan({ text: ` Vault root working directory: ${vaultPath || "In-memory adapter"}` });
+
+		// Claude CLI
+		const claudeRes = await detectCli("claude", this.plugin.settings.claudeCliPath);
+		const claudeItem = list.createEl("li");
+		claudeItem.createSpan({ cls: `oc-diag-badge ${claudeRes.found ? "is-ok" : "is-warning"}`, text: claudeRes.found ? "PASS" : "MISSING" });
+		claudeItem.createSpan({ text: ` Claude Code CLI: ${claudeRes.found ? `Found at ${claudeRes.path} (${claudeRes.version ?? ""})` : claudeRes.error ?? "Not found"}` });
+
+		// Antigravity CLI
+		const agyRes = await detectCli("agy", this.plugin.settings.antigravityCliPath);
+		const agyItem = list.createEl("li");
+		agyItem.createSpan({ cls: `oc-diag-badge ${agyRes.found ? "is-ok" : "is-warning"}`, text: agyRes.found ? "PASS" : "MISSING" });
+		agyItem.createSpan({ text: ` Antigravity CLI: ${agyRes.found ? `Found at ${agyRes.path} (${agyRes.version ?? ""})` : agyRes.error ?? "Not found"}` });
+
+		// Codex CLI
+		const codexRes = await detectCli("codex", this.plugin.settings.codexCliPath);
+		const codexItem = list.createEl("li");
+		codexItem.createSpan({ cls: `oc-diag-badge ${codexRes.found ? "is-ok" : "is-muted"}`, text: codexRes.found ? "PASS" : "OPTIONAL" });
+		codexItem.createSpan({ text: ` OpenAI Codex CLI: ${codexRes.found ? `Found at ${codexRes.path} (${codexRes.version ?? ""})` : "Optional — not found"}` });
+	}
+
+	private renderSupportBanner(containerEl: HTMLElement): void {
+		const funding = (this.plugin.manifest as unknown as { fundingUrl?: string | Record<string, string> })?.fundingUrl;
+		const kofiUrl = typeof funding === "object" && funding !== null
+			? Object.entries(funding).find(([k]) => k.toLowerCase().includes("coffee") || k.toLowerCase().includes("ko-fi") || k.toLowerCase().includes("kofi"))?.[1]
+			: typeof funding === "string" ? funding : undefined;
+		const githubUrl = typeof funding === "object" && funding !== null
+			? Object.entries(funding).find(([k]) => k.toLowerCase().includes("github") || k.toLowerCase().includes("sponsor"))?.[1]
+			: undefined;
+
+		const bannerEl = containerEl.createDiv({ cls: "oc-support-banner" });
+
+		const KOFI_SVG = `<svg width="24" height="24" viewBox="0 0 241 194" fill="none" xmlns="http://www.w3.org/2000/svg" class="oc-kofi-icon" aria-hidden="true">
+			<path d="M96.1344 193.911C61.1312 193.911 32.6597 178.256 15.9721 149.829C1.19788 124.912 -0.00585938 97.9229 -0.00585938 67.7662C-0.00585938 49.8876 5.37293 34.3215 15.5413 22.7466C24.8861 12.1157 38.1271 5.22907 52.8317 3.35378C70.2858 1.14271 91.9848 0.958984 114.545 0.958984C151.259 0.958984 161.63 1.4088 176.075 2.85328C195.29 4.76026 211.458 11.932 222.824 23.5955C234.368 35.4428 240.469 51.2624 240.469 69.3627V72.9994C240.469 103.885 219.821 129.733 191.046 136.759C188.898 141.827 186.237 146.871 183.089 151.837L183.006 151.964C172.869 167.632 149.042 193.918 103.401 193.918H96.1281L96.1344 193.911Z" fill="#FF5A16"/>
+		</svg>`;
+
+		const GITHUB_SVG = `<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+			<path d="M4.25 2.5c-1.336 0-2.75 1.164-2.75 3 0 2.15 1.58 4.144 3.365 5.682A20.565 20.565 0 008 13.393a20.561 20.561 0 003.135-2.211C12.92 9.644 14.5 7.65 14.5 5.5c0-1.836-1.414-3-2.75-3-1.373 0-2.609.986-3.029 2.456a.75.75 0 01-1.442 0C6.859 3.486 5.623 2.5 4.25 2.5z"/>
+		</svg>`;
+
+		const btnsEl = bannerEl.createDiv({ cls: "oc-support-banner-btns" });
+
+		if (kofiUrl) {
+			const kofiBtn = btnsEl.createEl("a", {
+				cls: "oc-support-banner-btn oc-support-kofi-btn",
+				href: kofiUrl,
+				attr: { target: "_blank", rel: "noopener noreferrer", "aria-label": "Support on Ko-fi" },
+			});
+			kofiBtn.appendChild(sanitizeHTMLToDom(KOFI_SVG));
+			kofiBtn.createSpan({ text: "Support the project" });
+			kofiBtn.addEventListener("click", (e) => {
+				e.preventDefault();
+				window.open(kofiUrl, "_blank");
+			});
+		}
+
+		if (githubUrl) {
+			const ghBtn = btnsEl.createEl("a", {
+				cls: "oc-support-banner-btn oc-support-github-btn",
+				href: githubUrl,
+				attr: { target: "_blank", rel: "noopener noreferrer", "aria-label": "Sponsor on GitHub" },
+			});
+			ghBtn.appendChild(sanitizeHTMLToDom(GITHUB_SVG));
+			ghBtn.createSpan({ text: "GitHub Sponsors" });
+			ghBtn.addEventListener("click", (e) => {
+				e.preventDefault();
+				window.open(githubUrl, "_blank");
+			});
+		}
+
+		bannerEl.createDiv({ cls: "oc-support-banner-divider" });
+
+		const linksEl = bannerEl.createDiv({ cls: "oc-support-banner-links" });
+
+		const feedbackLink = linksEl.createEl("a", {
+			text: "Give feedback",
+			cls: "oc-support-text-link",
+			attr: { role: "button" },
+		});
+		feedbackLink.addEventListener("click", (e) => {
+			e.preventDefault();
+			new FeedbackModal(this.app, "settings").open();
+		});
+
+		linksEl.createSpan({ cls: "oc-support-link-sep", text: "·" });
+
+		const featureLink = linksEl.createEl("a", {
+			text: "Request a feature",
+			cls: "oc-support-text-link",
+			attr: { role: "button" },
+		});
+		featureLink.addEventListener("click", (e) => {
+			e.preventDefault();
+			new FeatureRequestModal(this.app).open();
+		});
+
+		linksEl.createSpan({ cls: "oc-support-link-sep", text: "·" });
+
+		const issuesLink = linksEl.createEl("a", {
+			text: "GitHub issues",
+			cls: "oc-support-text-link",
+			attr: { role: "button" },
+		});
+		issuesLink.addEventListener("click", (e) => {
+			e.preventDefault();
+			new GitHubIssueModal(this.app).open();
+		});
+
+		linksEl.createSpan({ cls: "oc-support-link-sep", text: "·" });
+
+		const releaseNotesLink = linksEl.createEl("a", {
+			text: "Release notes",
+			cls: "oc-support-text-link",
+			attr: { role: "button" },
+		});
+		releaseNotesLink.addEventListener("click", (e) => {
+			e.preventDefault();
+			void this.plugin.showReleaseNotesModal();
+		});
 	}
 }

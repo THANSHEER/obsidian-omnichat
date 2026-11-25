@@ -1,4 +1,4 @@
-import { App, ItemView, Menu, Modal, Notice, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { App, ItemView, Menu, Modal, Notice, setIcon, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import AIChatPlugin from "../main";
 import { SERVICE_META, SERVICE_URLS, ServiceKey } from "../constants";
 import { ContextItem } from "../settings";
@@ -6,7 +6,13 @@ import { ContextSearchModal } from "../modals/ContextSearchModal";
 import { FolderPickerModal } from "../modals/FolderPickerModal";
 import { SaveDestinationModal } from "../modals/SaveDestinationModal";
 import { OAuthLoginModal } from "../modals/OAuthLoginModal";
-import { OllamaChatUI } from "./OllamaChatUI";
+import { AgentChatUI } from "./AgentChatUI";
+import { AGENT_ENGINES, type AgentEngineKey, type UIMode } from "../types/agent";
+import {
+	buildClearWebviewThemeScript,
+	buildWebviewThemeScript,
+	getObsidianThemeTokens,
+} from "../services/WebviewThemeService";
 import {
 	normalizeUrl,
 	getServiceKey,
@@ -43,6 +49,11 @@ class ConfirmModal extends Modal {
 type EmbeddedWebview = HTMLElement & {
 	src: string;
 	executeJavaScript?: (code: string) => Promise<unknown>;
+	canGoBack?: () => boolean;
+	canGoForward?: () => boolean;
+	goBack?: () => void;
+	goForward?: () => void;
+	getURL?: () => string;
 };
 
 export class AIChatView extends ItemView {
@@ -51,6 +62,7 @@ export class AIChatView extends ItemView {
 	private pendingText: string | null = null;
 
 	// ── Runtime state ─────────────────────────────────────────
+	public currentMode:       UIMode = "browser";
 	private activeUrl        = "";
 	private items: ContextItem[] = [];
 	private isAdding         = false;
@@ -63,12 +75,18 @@ export class AIChatView extends ItemView {
 	private fallbackEl:   HTMLElement      | null = null;
 	private browserShellEl: HTMLElement    | null = null;
 	private nativeUiShellEl: HTMLElement   | null = null;
-	private ollamaChat:   OllamaChatUI     | null = null;
+	private agentChat:    AgentChatUI      | null = null;
+	private browserModeBtnEl: HTMLButtonElement | null = null;
+	private agentModeBtnEl:   HTMLButtonElement | null = null;
+	private svcSelectWrapEl:  HTMLElement   | null = null;
 	private loadingEl:      HTMLElement    | null = null;
 	private loadingLabelEl: HTMLElement    | null = null;
 	private svcDotEl:     HTMLElement      | null = null;
 	private svcSelectEl:  HTMLSelectElement | null = null;
 	private pipEl:        HTMLElement      | null = null;
+	private backBtnEl:    HTMLButtonElement | null = null;
+	private forwardBtnEl: HTMLButtonElement | null = null;
+	private openExternalBtnEl: HTMLButtonElement | null = null;
 	private reloadBtnEl:   HTMLButtonElement | null = null;
 	private ctxCountEl:    HTMLButtonElement | null = null;
 	private addBtnEl:      HTMLButtonElement | null = null;
@@ -111,12 +129,16 @@ export class AIChatView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass("ai-chat-view");
+		this.currentMode = this.isPrimary
+			? this.plugin.settings.defaultMode
+			: this.plugin.settings.splitPanelMode;
 		this.resolveInitialUrl();
 		this.items = [...this.plugin.settings.contextItems];
 		this.buildUI();
 		this.startIdleTimer();
 		// Guaranteed cleanup on unload, even if onClose is bypassed (stopIdleTimer is idempotent).
 		this.register(() => this.stopIdleTimer());
+		this.registerEvent(this.app.workspace.on("css-change", () => this.applyWebviewTheme()));
 		if (this.plugin.settings.autoContextOnOpen) this.autoAddActiveFile();
 	}
 
@@ -124,14 +146,80 @@ export class AIChatView extends ItemView {
 		this.stopIdleTimer();
 		this.clearLoadWatchdog();
 		this.destroyWebview();
+		this.agentChat?.destroy();
+		this.agentChat = null;
 		this.contentEl.empty();
 		this.contentEl.removeClass("ai-chat-view");
 		this.nullRefs();
 	}
 
 	injectText(text: string): void {
+		if (this.currentMode === "agent") {
+			this.agentChat?.injectContext(text);
+			return;
+		}
 		this.pendingText = text;
 		if (this.webviewReady) void this.flushPendingText();
+	}
+
+	public setMode(mode: UIMode): void {
+		if (this.currentMode === mode) return;
+		this.currentMode = mode;
+		this.applyModeUI();
+	}
+
+	public applyModeUI(): void {
+		if (this.browserModeBtnEl) {
+			if (this.currentMode === "browser") this.browserModeBtnEl.addClass("is-active");
+			else this.browserModeBtnEl.removeClass("is-active");
+		}
+		if (this.agentModeBtnEl) {
+			if (this.currentMode === "agent") this.agentModeBtnEl.addClass("is-active");
+			else this.agentModeBtnEl.removeClass("is-active");
+		}
+
+		this.svcSelectWrapEl?.show();
+		this.reloadBtnEl?.show();
+		this.svcDotEl?.show();
+
+		if (this.currentMode === "agent") {
+			this.browserShellEl?.hide();
+			this.nativeUiShellEl?.show();
+			this.pipEl?.hide();
+			this.backBtnEl?.hide();
+			this.forwardBtnEl?.hide();
+			this.openExternalBtnEl?.hide();
+			this.setLoading(false);
+			this.syncSelectValue();
+			this.updateServiceDot();
+			this.agentChat?.reload();
+		} else {
+			const isOllama = getServiceKey(this.activeUrl) === "ollama";
+			if (isOllama) {
+				this.browserShellEl?.hide();
+				this.nativeUiShellEl?.show();
+				this.backBtnEl?.hide();
+				this.forwardBtnEl?.hide();
+				this.openExternalBtnEl?.hide();
+				this.setLoading(false);
+				this.agentChat?.setEngine("ollama");
+			} else {
+				this.nativeUiShellEl?.hide();
+				this.browserShellEl?.show();
+				this.backBtnEl?.show();
+				this.forwardBtnEl?.show();
+				this.openExternalBtnEl?.show();
+				this.updateNavButtons();
+				if (this.webview && this.webview.src !== this.activeUrl) {
+					this.webviewReady = false;
+					this.setLoading(true);
+					this.fallbackEl?.hide();
+					this.webview.src = this.activeUrl;
+				}
+			}
+			this.syncSelectValue();
+			this.updateServiceDot();
+		}
 	}
 
 	renderView(): void {
@@ -158,28 +246,11 @@ export class AIChatView extends ItemView {
 		// Update service / template selectors only when their option sets change.
 		this.populateServiceOptions();
 		this.populateTemplateOptions();
+		this.syncSelectValue();
 		this.updateServiceDot();
-		if (this.svcSelectEl) {
-			const k = getServiceKey(this.activeUrl);
-			this.svcSelectEl.value = k ?? this.activeUrl;
-		}
 
-		// Update webview URL if needed — does NOT rebuild the DOM.
-		const isOllama = getServiceKey(this.activeUrl) === "ollama";
-		if (isOllama) {
-			this.browserShellEl?.hide();
-			this.nativeUiShellEl?.show();
-			this.setLoading(false);
-		} else {
-			this.nativeUiShellEl?.hide();
-			this.browserShellEl?.show();
-			if (this.webview && this.webview.src !== this.activeUrl) {
-				this.webviewReady = false;
-				this.setLoading(true);
-				this.fallbackEl?.hide();
-				this.webview.src = this.activeUrl;
-			}
-		}
+		this.applyModeUI();
+		this.applyWebviewTheme();
 
 		// Restart idle timer so a changed autoRefreshMinutes takes effect immediately.
 		this.stopIdleTimer();
@@ -223,7 +294,7 @@ export class AIChatView extends ItemView {
 
 		this.nativeUiShellEl = this.appEl.createEl("section", { cls: "ai-chat-native-shell" });
 		this.nativeUiShellEl.hide();
-		this.ollamaChat = new OllamaChatUI(this.nativeUiShellEl, this.plugin);
+		this.agentChat = new AgentChatUI(this.nativeUiShellEl, this.plugin);
 
 		this.fallbackEl = frame.createDiv({ cls: "ai-chat-browser-fallback" });
 		this.fallbackEl.setAttribute("role", "alert");
@@ -242,25 +313,55 @@ export class AIChatView extends ItemView {
 		this.loadingEl.hide();
 
 		this.mountWebview();
+		this.applyModeUI();
 	}
 
 	private buildServiceRow(): void {
 		const row = this.headerEl!.createDiv({ cls: "vc-service-row" });
+
+		const modeGroup = row.createDiv({ cls: "vc-mode-toggle-group" });
+		this.browserModeBtnEl = modeGroup.createEl("button", {
+			cls: `vc-mode-btn ${this.currentMode === "browser" ? "is-active" : ""}`,
+		});
+		setIcon(this.browserModeBtnEl.createSpan({ cls: "vc-mode-icon" }), "globe");
+		this.browserModeBtnEl.createSpan({ text: "Browser" });
+		this.browserModeBtnEl.title = "Switch to browser AI mode";
+		this.browserModeBtnEl.addEventListener("click", () => this.setMode("browser"));
+
+		this.agentModeBtnEl = modeGroup.createEl("button", {
+			cls: `vc-mode-btn ${this.currentMode === "agent" ? "is-active" : ""}`,
+		});
+		setIcon(this.agentModeBtnEl.createSpan({ cls: "vc-mode-icon" }), "terminal");
+		this.agentModeBtnEl.createSpan({ text: "Agent" });
+		this.agentModeBtnEl.title = "Switch to agent CLI & API mode";
+		this.agentModeBtnEl.addEventListener("click", () => this.setMode("agent"));
 
 		this.svcDotEl = row.createSpan({ cls: "vc-svc-dot" });
 		this.svcDotEl.setAttribute("aria-hidden", "true");
 		this.updateServiceDot();
 
 		const wrap = row.createDiv({ cls: "vc-select-wrap" });
+		this.svcSelectWrapEl = wrap;
 		this.svcSelectEl = wrap.createEl("select", { cls: "vc-service-select" });
-		this.svcSelectEl.setAttribute("aria-label", "Select AI service");
+		this.svcSelectEl.setAttribute("aria-label", "Select AI service or agent");
 		this.populateServiceOptions();
-		const k = getServiceKey(this.activeUrl);
-		this.svcSelectEl.value = k ?? this.activeUrl;
 		this.svcSelectEl.addEventListener("change", (e) => {
 			const val = (e.target as HTMLSelectElement).value;
-			if (val in SERVICE_URLS) this.switchService(val as ServiceKey);
-			else if (val) this.switchToUrl(val);
+			if (val.startsWith("agent:")) {
+				const engKey = val.slice("agent:".length) as AgentEngineKey;
+				this.plugin.settings.agentEngine = engKey;
+				void this.plugin.saveSettings();
+				this.agentChat?.setEngine(engKey);
+				this.setMode("agent");
+			} else if (val.startsWith("browser:")) {
+				const target = val.slice("browser:".length);
+				this.setMode("browser");
+				if (target.startsWith("url:")) {
+					this.switchToUrl(target.slice("url:".length));
+				} else if (target in SERVICE_URLS) {
+					this.switchService(target as ServiceKey);
+				}
+			}
 		});
 		wrap.createSpan({ cls: "vc-select-caret" }).setAttribute("aria-hidden", "true");
 
@@ -268,32 +369,93 @@ export class AIChatView extends ItemView {
 		this.pipEl.setAttribute("aria-label", "Loading");
 		this.pipEl.hide();
 
-		this.reloadBtnEl = row.createEl("button", { cls: "vc-reload-btn", text: "↺" });
-		this.reloadBtnEl.title = "Reload the AI page";
+		this.backBtnEl = row.createEl("button", { cls: "vc-reload-btn vc-nav-btn" });
+		setIcon(this.backBtnEl, "arrow-left");
+		this.backBtnEl.title = "Back";
+		this.backBtnEl.setAttribute("aria-label", "Back");
+		this.backBtnEl.disabled = true;
+		this.backBtnEl.addEventListener("click", () => {
+			if (this.webview?.canGoBack?.()) this.webview.goBack?.();
+		});
+
+		this.forwardBtnEl = row.createEl("button", { cls: "vc-reload-btn vc-nav-btn" });
+		setIcon(this.forwardBtnEl, "arrow-right");
+		this.forwardBtnEl.title = "Forward";
+		this.forwardBtnEl.setAttribute("aria-label", "Forward");
+		this.forwardBtnEl.disabled = true;
+		this.forwardBtnEl.addEventListener("click", () => {
+			if (this.webview?.canGoForward?.()) this.webview.goForward?.();
+		});
+
+		this.reloadBtnEl = row.createEl("button", { cls: "vc-reload-btn" });
+		setIcon(this.reloadBtnEl, "rotate-cw");
+		this.reloadBtnEl.title = "Reload active page or agent connection";
 		this.reloadBtnEl.setAttribute("aria-label", "Reload");
 		this.reloadBtnEl.addEventListener("click", () => this.reloadWebview());
+
+		this.openExternalBtnEl = row.createEl("button", { cls: "vc-reload-btn vc-nav-btn" });
+		setIcon(this.openExternalBtnEl, "external-link");
+		this.openExternalBtnEl.title = "Open in default browser";
+		this.openExternalBtnEl.setAttribute("aria-label", "Open in default browser");
+		this.openExternalBtnEl.addEventListener("click", () => {
+			const url = this.webview?.getURL?.() || this.activeUrl;
+			if (url) window.open(url);
+		});
 	}
 
 	private populateServiceOptions(): void {
 		if (!this.svcSelectEl) return;
 		const s = this.plugin.settings;
 		const sig = [
-			...SERVICE_META.filter(m => s[m.enableKey]).map(m => m.key),
-			...s.customServices.map(svc => `${svc.id}:${svc.label}:${svc.url}`),
+			s.agentEngine,
+			...AGENT_ENGINES.map((e) => e.key),
+			...SERVICE_META.filter((m) => s[m.enableKey]).map((m) => m.key),
+			...s.customServices.map((svc) => `${svc.id}:${svc.label}:${svc.url}`),
 		].join("|");
-		if (sig === this.serviceOptionsSig && this.svcSelectEl.options.length > 0) return;
+		if (sig === this.serviceOptionsSig && this.svcSelectEl.options.length > 0) {
+			this.syncSelectValue();
+			return;
+		}
 		this.serviceOptionsSig = sig;
 
-		const previous = this.svcSelectEl.value;
 		this.svcSelectEl.empty();
-		const opt = (val: string, label: string): void => {
-			const o = this.svcSelectEl!.createEl("option", { text: label });
-			o.value = val;
-		};
-		for (const m of SERVICE_META) if (s[m.enableKey]) opt(m.key, m.label);
-		for (const svc of s.customServices) opt(svc.url, svc.label);
-		if (previous && Array.from(this.svcSelectEl.options).some(o => o.value === previous)) {
-			this.svcSelectEl.value = previous;
+
+		// ── Group 1: Coding Agents & APIs ──
+		const agentGroup = this.svcSelectEl.createEl("optgroup", { attr: { label: "Coding agents & APIs" } });
+		for (const eng of AGENT_ENGINES) {
+			const o = agentGroup.createEl("option", { text: `${eng.label} (${eng.badge})` });
+			o.value = `agent:${eng.key}`;
+		}
+
+		// ── Group 2: Browser AI Services ──
+		const browserGroup = this.svcSelectEl.createEl("optgroup", { attr: { label: "Browser AI services" } });
+		for (const m of SERVICE_META) {
+			if (s[m.enableKey]) {
+				const o = browserGroup.createEl("option", { text: m.label });
+				o.value = `browser:${m.key}`;
+			}
+		}
+		for (const svc of s.customServices) {
+			const o = browserGroup.createEl("option", { text: svc.label });
+			o.value = `browser:url:${svc.url}`;
+		}
+
+		this.syncSelectValue();
+	}
+
+	private syncSelectValue(): void {
+		if (!this.svcSelectEl) return;
+		if (this.currentMode === "agent") {
+			const targetVal = `agent:${this.plugin.settings.agentEngine || "claude-cli"}`;
+			if (Array.from(this.svcSelectEl.options).some((o) => o.value === targetVal)) {
+				this.svcSelectEl.value = targetVal;
+			}
+		} else {
+			const k = getServiceKey(this.activeUrl);
+			const targetVal = k ? `browser:${k}` : `browser:url:${this.activeUrl}`;
+			if (Array.from(this.svcSelectEl.options).some((o) => o.value === targetVal)) {
+				this.svcSelectEl.value = targetVal;
+			}
 		}
 	}
 
@@ -379,10 +541,12 @@ export class AIChatView extends ItemView {
 		this.appEl = null; this.headerEl = null; this.hostEl = null;
 		this.fallbackEl = null; this.loadingEl = null; this.loadingLabelEl = null;
 		this.svcDotEl = null; this.svcSelectEl = null;
-		this.pipEl = null; this.reloadBtnEl = null;
+		this.pipEl = null; this.backBtnEl = null; this.forwardBtnEl = null;
+		this.openExternalBtnEl = null; this.reloadBtnEl = null;
 		this.ctxCountEl = null; this.addBtnEl = null; this.copyCtxBtnEl = null;
 		this.templatesSelectEl = null; this.contextListEl = null;
-		this.browserShellEl = null; this.nativeUiShellEl = null; this.ollamaChat = null;
+		this.browserShellEl = null; this.nativeUiShellEl = null; this.agentChat = null;
+		this.browserModeBtnEl = null; this.agentModeBtnEl = null; this.svcSelectWrapEl = null;
 		this.serviceOptionsSig = "";
 		this.templateOptionsSig = "";
 	}
@@ -419,6 +583,8 @@ export class AIChatView extends ItemView {
 				void wv.executeJavaScript(getChromeStealthScript());
 				void wv.executeJavaScript(getWebviewScrollFixScript());
 			}
+			this.applyWebviewTheme();
+			this.updateNavButtons();
 			if (this.pendingText) void this.flushPendingText();
 		});
 		wv.addEventListener("did-start-loading",    () => {
@@ -429,6 +595,7 @@ export class AIChatView extends ItemView {
 			this.clearLoadWatchdog();
 			this.setLoading(false);
 			this.lastInteractedAt = Date.now();
+			this.updateNavButtons();
 		});
 		wv.addEventListener("did-fail-load",        (e: Event) => {
 			const ev = e as Event & { errorCode?: number; isMainFrame?: boolean };
@@ -447,10 +614,14 @@ export class AIChatView extends ItemView {
 		wv.addEventListener("did-navigate",         () => {
 			this.lastInteractedAt = Date.now();
 			if (wv.executeJavaScript) void wv.executeJavaScript(getWebviewScrollFixScript());
+			this.applyWebviewTheme();
+			this.updateNavButtons();
 		});
 		wv.addEventListener("did-navigate-in-page", () => {
 			this.lastInteractedAt = Date.now();
 			if (wv.executeJavaScript) void wv.executeJavaScript(getWebviewScrollFixScript());
+			this.applyWebviewTheme();
+			this.updateNavButtons();
 		});
 		wv.addEventListener("new-window", (e: Event) => {
 			const ev = e as Event & { url?: string };
@@ -512,6 +683,23 @@ export class AIChatView extends ItemView {
 		this.fallbackEl?.show();
 	}
 
+	private applyWebviewTheme(): void {
+		if (!this.webview?.executeJavaScript || !this.webviewReady) return;
+		if (this.currentMode !== "browser" || getServiceKey(this.activeUrl) === "ollama") return;
+		const script = this.plugin.settings.adaptWebviewTheme
+			? buildWebviewThemeScript(getObsidianThemeTokens(this.plugin.settings.theme))
+			: buildClearWebviewThemeScript();
+		void this.webview.executeJavaScript(script);
+	}
+
+	private updateNavButtons(): void {
+		if (this.backBtnEl) {
+			this.backBtnEl.disabled = !(this.webview?.canGoBack?.() ?? false);
+		}
+		if (this.forwardBtnEl) {
+			this.forwardBtnEl.disabled = !(this.webview?.canGoForward?.() ?? false);
+		}
+	}
 	// ── Idle timer ────────────────────────────────────────────
 
 	private startIdleTimer(): void {
@@ -564,7 +752,12 @@ export class AIChatView extends ItemView {
 		for (const c of Array.from(this.svcDotEl.classList)) {
 			if (c.startsWith("vc-svc-dot--")) this.svcDotEl.removeClass(c);
 		}
-		this.svcDotEl.addClass(`vc-svc-dot--${getServiceKey(this.activeUrl) ?? "none"}`);
+		if (this.currentMode === "agent") {
+			const engine = this.plugin.settings.agentEngine ?? "claude-cli";
+			this.svcDotEl.addClass(`vc-svc-dot--${engine}`);
+		} else {
+			this.svcDotEl.addClass(`vc-svc-dot--${getServiceKey(this.activeUrl) ?? "none"}`);
+		}
 	}
 
 	private updateContextCount(): void {
@@ -798,6 +991,10 @@ export class AIChatView extends ItemView {
 	private async applyTemplate(text: string): Promise<void> {
 		if (!text.trim()) { new Notice("This template is empty — edit it in settings."); return; }
 		const resolved = this.resolveTemplateVariables(text);
+		if (this.currentMode === "agent") {
+			this.agentChat?.injectContext(resolved);
+			return;
+		}
 		if (!await this.injectIntoWebview(resolved)) {
 			try {
 				// Clipboard write is a user-initiated fallback: direct injection failed,
@@ -847,6 +1044,12 @@ export class AIChatView extends ItemView {
 			if (!parts.length) { new Notice("No readable notes found."); return; }
 			const { text, truncated } = buildContextString(parts, s.maxContextLength, s.contextPrefix);
 			if (truncated) new Notice("Context truncated — limit reached.");
+			if (this.currentMode === "agent") {
+				this.agentChat?.injectContext(text);
+				new Notice("Context added to agent chat.");
+				if (s.autoClearContext) this.clearAll();
+				return;
+			}
 			if (await this.injectIntoWebview(text)) {
 				new Notice("Context pasted in chat.");
 			} else {
@@ -886,7 +1089,10 @@ export class AIChatView extends ItemView {
 	// ── Save actions ──────────────────────────────────────────
 
 	async saveSelection(): Promise<void> {
-		const text = await this.readWebviewSelection();
+		let text = await this.readWebviewSelection();
+		if (!text && this.currentMode === "browser" && getServiceKey(this.activeUrl) !== "ollama") {
+			text = await this.extractLastWebviewResponse();
+		}
 		if (!text) {
 			new Notice("Select the text you want to save in the chat first.");
 			return;
@@ -910,8 +1116,13 @@ export class AIChatView extends ItemView {
 	// page's own context (same channel as injection), so it's site-agnostic — no
 	// per-service selectors to maintain. Returns "" when nothing is selected.
 	private async readWebviewSelection(): Promise<string> {
-		if (getServiceKey(this.activeUrl) === "ollama" && this.ollamaChat) {
-			return this.ollamaChat.getSelectedText();
+		if (this.currentMode === "agent") {
+			const sel = activeWindow.getSelection()?.toString();
+			if (sel?.trim()) return sel.trim();
+		}
+		if (getServiceKey(this.activeUrl) === "ollama") {
+			const sel = activeWindow.getSelection()?.toString();
+			if (sel?.trim()) return sel.trim();
 		}
 		if (!this.webview?.executeJavaScript) return "";
 		try {
@@ -920,6 +1131,37 @@ export class AIChatView extends ItemView {
 			);
 			return typeof result === "string" ? result.trim() : "";
 		} catch { return ""; }
+	}
+
+	/** Best-effort extraction of the latest assistant response when nothing is highlighted. */
+	private async extractLastWebviewResponse(): Promise<string> {
+		if (!this.webview?.executeJavaScript || !this.webviewReady) return "";
+		try {
+			const result = await this.webview.executeJavaScript(`
+				(function() {
+					var selectors = [
+						'[data-message-author-role="assistant"] .markdown',
+						'[data-testid="assistant-message"]',
+						'.font-claude-response',
+						'model-response .markdown',
+						'article .markdown',
+						'.prose'
+					];
+					for (var i = 0; i < selectors.length; i++) {
+						var nodes = document.querySelectorAll(selectors[i]);
+						if (nodes.length > 0) {
+							var last = nodes[nodes.length - 1];
+							var txt = (last && (last.innerText || last.textContent) || '').trim();
+							if (txt) return txt;
+						}
+					}
+					return '';
+				})()
+			`);
+			return typeof result === "string" ? result.trim() : "";
+		} catch {
+			return "";
+		}
 	}
 
 	// ── Navigation ────────────────────────────────────────────
@@ -949,7 +1191,11 @@ export class AIChatView extends ItemView {
 		if (isOllama) {
 			this.browserShellEl?.hide();
 			this.nativeUiShellEl?.show();
+			this.backBtnEl?.hide();
+			this.forwardBtnEl?.hide();
+			this.openExternalBtnEl?.hide();
 			this.setLoading(false);
+			this.agentChat?.setEngine("ollama");
 		} else {
 			this.nativeUiShellEl?.hide();
 			this.browserShellEl?.show();
@@ -965,8 +1211,8 @@ export class AIChatView extends ItemView {
 	private switchService(key: ServiceKey): void { this.switchToUrl(SERVICE_URLS[key]); }
 
 	reloadWebview(): void {
-		if (getServiceKey(this.activeUrl) === "ollama") {
-			this.ollamaChat?.reload();
+		if (this.currentMode === "agent" || getServiceKey(this.activeUrl) === "ollama") {
+			this.agentChat?.reload();
 			return;
 		}
 		if (!this.webview) return;
@@ -1000,8 +1246,8 @@ export class AIChatView extends ItemView {
 	}
 
 	private async injectIntoWebview(text: string): Promise<boolean> {
-		if (getServiceKey(this.activeUrl) === "ollama" && this.ollamaChat) {
-			this.ollamaChat.injectContext(text);
+		if (this.currentMode === "agent" || getServiceKey(this.activeUrl) === "ollama") {
+			this.agentChat?.injectContext(text);
 			return true;
 		}
 		if (!this.webview?.executeJavaScript) return false;

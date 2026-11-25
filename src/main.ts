@@ -8,6 +8,8 @@ import { WelcomeModal } from "./modals/WelcomeModal";
 import { ContextItem, DEFAULT_SETTINGS, DockSettings, AIChatSettingTab } from "./settings";
 import { getCleanUserAgent, getChromeClientHints, getServiceKey, getFirefoxUserAgent, isGoogleAuthUrl } from "./utils";
 import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
+import { ChatHistoryService } from "./services/ChatHistoryService";
+import type { AgentEngineKey, UIMode } from "./types/agent";
 
 interface ElectronWebRequest {
 	onBeforeSendHeaders?: (
@@ -55,7 +57,7 @@ type PluginsApi = {
 
 export default class AIChatPlugin extends Plugin {
 	settings: DockSettings;
-	private statusBarEl!: HTMLElement;
+	chatHistory: ChatHistoryService;
 	/** True when there was no prior data.json — first-time install. */
 	private isFirstInstall = false;
 	/** False after onunload — skips late update-modal opens. */
@@ -65,6 +67,8 @@ export default class AIChatPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.chatHistory = new ChatHistoryService(this);
+		await this.chatHistory.loadStore();
 		this.pluginActive = true;
 		this.configureElectronSession();
 		this.patchUninstallFeedback();
@@ -85,9 +89,6 @@ export default class AIChatPlugin extends Plugin {
 
 		registerCommands(this);
 		this.addSettingTab(new AIChatSettingTab(this.app, this));
-
-		this.statusBarEl = this.addStatusBarItem();
-		this.updateStatusBar();
 
 		this.registerEvent(
 			this.app.workspace.on("file-menu", (menu: Menu, file: TAbstractFile) => {
@@ -126,6 +127,7 @@ export default class AIChatPlugin extends Plugin {
 
 	onunload(): void {
 		this.pluginActive = false;
+		void this.chatHistory?.saveStoreNow();
 		this.unpatchUninstallFeedback();
 	}
 
@@ -197,6 +199,13 @@ export default class AIChatPlugin extends Plugin {
 		new UpdateNotesModal(this.app, current, previous, notes).open();
 	}
 
+	async showReleaseNotesModal(): Promise<void> {
+		const current = this.manifest.version;
+		const previous = this.settings.lastSeenVersion || current;
+		const notes = await fetchReleaseNotes(current);
+		new UpdateNotesModal(this.app, current, previous, notes).open();
+	}
+
 	async activateView(): Promise<void> {
 		const existingLeaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
 		const leaf = existingLeaf ?? this.app.workspace.getRightLeaf(false);
@@ -218,6 +227,27 @@ export default class AIChatPlugin extends Plugin {
 
 	async openAIChat(): Promise<void> {
 		await this.activateView();
+	}
+
+	async openAgentGUI(engine?: AgentEngineKey): Promise<void> {
+		if (engine) {
+			this.settings.agentEngine = engine;
+			await this.saveSettings();
+		}
+		await this.activateView();
+		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
+		if (leaf?.view instanceof AIChatView) {
+			leaf.view.setMode("agent");
+		}
+	}
+
+	toggleDualMode(): void {
+		const leaf = this.app.workspace.getLeavesOfType(AI_CHAT_VIEW_TYPE)[0];
+		if (leaf?.view instanceof AIChatView) {
+			const nextMode: UIMode = leaf.view.currentMode === "browser" ? "agent" : "browser";
+			leaf.view.setMode(nextMode);
+			new Notice(`Switched to ${nextMode === "browser" ? "Browser AI" : "Agent CLI & API"} mode`);
+		}
 	}
 
 	async openService(key: ServiceKey): Promise<void> {
@@ -254,7 +284,6 @@ export default class AIChatPlugin extends Plugin {
 		if (this.settings.webAppUrl === url) return;
 		this.settings.webAppUrl = url;
 		await this.saveSettings();
-		this.updateStatusBar();
 		this.rerenderOpenViews();
 	}
 
@@ -281,9 +310,7 @@ export default class AIChatPlugin extends Plugin {
 	}
 
 	updateStatusBar(): void {
-		const key  = getServiceKey(this.settings.webAppUrl);
-		const meta = SERVICE_META.find(m => m.key === key);
-		this.statusBarEl.setText(`◈ ${meta?.label ?? "OmniChat"}`);
+		// Status bar indicator disabled to keep Obsidian's status bar uncluttered
 	}
 
 	async addFileToContext(file: TFile): Promise<void> {

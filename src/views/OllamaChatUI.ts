@@ -44,7 +44,7 @@ export class OllamaChatUI {
 		const inputContainer = this.container.createDiv({ cls: "ollama-input-container" });
 		const inputGlass = inputContainer.createDiv({ cls: "ollama-input-glass" });
 		this.input = inputGlass.createEl("textarea", { cls: "ollama-input-box" });
-		this.input.placeholder = "Ask ollama anything...";
+		this.input.placeholder = "Ask Ollama anything...";
 		this.input.rows = 1;
 		
 		this.sendBtn = inputGlass.createEl("button", { cls: "ollama-send-btn" });
@@ -146,7 +146,7 @@ export class OllamaChatUI {
 		const model = this.modelSelect.value;
 		if (!text) return;
 		if (!model) {
-			new Notice("No model selected or ollama is not running.");
+			new Notice("No model selected or Ollama is not running.");
 			return;
 		}
 		

@@ -25,9 +25,13 @@ const SENTENCE_CASE_BRANDS = [
 	// Other
 	"Notion", "Evernote", "Roam Research", "Logseq", "Anki", "Reddit",
 	"VS Code", "Visual Studio Code", "IntelliJ IDEA", "WebStorm", "PyCharm",
-	// AI services and browsers
-	"ChatGPT", "Claude", "DeepSeek", "Perplexity", "Gemini", "Grok",
-	"Copilot", "Manus AI", "Kimi", "Google", "xAI", "OmniChat", "Chrome",
+	// AI services, agents and browsers
+	"ChatGPT", "Claude", "Claude Code", "Antigravity", "Codex", "DeepSeek", "Perplexity", "Gemini", "Grok",
+	"Copilot", "Manus AI", "Kimi", "Google", "xAI", "OmniChat", "Chrome", "Ollama", "OpenAI", "Anthropic",
+	"GPT-4o", "Groq", "LM Studio",
+	"API", "CLI", "GUI",
+	// Sibling plugins & tools
+	"Mermaid Flow", "NoteFlare", "WYSIWYG",
 	// Donation / Sponsor brands
 	"Ko-fi", "Buy Me a Coffee",
 ];

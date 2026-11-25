@@ -5,7 +5,7 @@
 <h1 align="center">OmniChat</h1>
 
 <p align="center">
-  <strong>Keep ChatGPT, Claude, Gemini, Perplexity, and your other favorite AI tools inside one seamless Obsidian sidebar.</strong>
+  <strong>Dual-mode AI workspace for Obsidian: Embedded Web AI + Autonomous Agent CLI & Coding Studio.</strong>
 </p>
 
 <p align="center">
@@ -26,58 +26,123 @@
   </a>
 </p>
 
-## Why OmniChat?
+---
 
-OmniChat is a powerful desktop-only Obsidian plugin that embeds AI chat websites in a persistent sidebar. It allows you to seamlessly send selected text, inject vault context into your active chat, and save responses back into your Obsidian vault—all without leaving your workflow.
+## ⚡ What's New: The Dual-Mode Architecture
 
-- **10 Built-in Services:** Switch instantly between ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, Kimi, and Ollama from a single panel.
-- **Bring Your Own AI:** Add custom AI tools by URL and keep them within the same quick selector.
-- **Send Selection:** Send selected editor text straight into the active chat with a single click.
-- **Build Context:** Build reusable vault context from your notes, open tabs, or full folders, then inject it instantly.
-- **Prompt Templates:** Streamline repeated workflows with custom prompt templates.
-- **Split View:** Open a second split panel to keep two AI services visible side by side.
-- **Save Responses:** Copy text in the AI page (Cmd+C / Ctrl+C) and click Save to securely store responses in your vault.
-- **Persistent Sessions:** Keep all your chats logged in and active across Obsidian restarts.
+OmniChat brings you the best of both worlds in a single persistent sidebar:
+
+1. **🌐 Browser AI Mode:** Access web interfaces for ChatGPT, Claude, Gemini, DeepSeek, Perplexity, Grok, Copilot, Manus AI, Kimi, and custom web tools with session persistence, stealth scripts, and multi-service switching.
+2. **⚡ Agent CLI & API Studio:** A first-class coding and reasoning assistant studio. Run local CLI agents (**Claude Code**, **Antigravity CLI**, **OpenAI Codex**) with vault working directory access, real-time streaming, collapsible `<think>` reasoning, and direct APIs (Anthropic, OpenAI, Ollama).
 
 ---
 
-## Features in Action
+## Why OmniChat?
 
-### Service Switching
-Switch seamlessly between different AI models and add your own custom URLs.
+- **Dual-Mode Header:** Switch instantly between 🌐 **Browser** and ⚡ **Agent GUI** modes with one click.
+- **Agent CLI Integration:** Execute autonomous coding commands with Claude Code (`claude`), Antigravity CLI (`agy`), and OpenAI Codex (`codex`).
+- **Direct API & Local LLMs:** Stream Anthropic Claude (`claude-3-7-sonnet`), OpenAI (`gpt-4o`, `o3-mini`), and local Ollama models with zero browser overhead.
+- **Vault Working Directory:** Agents run directly in your Obsidian vault root, allowing them to inspect, search, and update markdown notes.
+- **Deep Reasoning Disclosure:** Interactive collapsible `<think>` thought blocks for reasoning models (DeepSeek-R1, Claude 3.7).
+- **1-Click Code & Note Actions:** Copy code snippets, insert responses at your editor cursor, or save formatted notes directly into vault folders.
+- **Context Staging Tray:** Stage active notes, selections, or full folders and inject them into the chat prompt.
+- **4-Part Organized Settings:** Dedicated tabs for Common Settings, Browser Services, Agent CLI & Studio, and System Diagnostics.
+- **10 Built-in Web Services:** ChatGPT, Claude, DeepSeek, Perplexity, Gemini, Grok, Copilot, Manus AI, Kimi, and Ollama Web.
+
+---
+
+## Features in Action (Video Walkthroughs)
+
+### 1. Dual-Mode Switching & Agent Coding Studio
+Switch smoothly between embedded web AI and the native Agent Studio. Stream code, inspect step-by-step reasoning, and insert code blocks directly into your notes.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/THANSHEER/media-hub/main/obsidian-omnichat/animated-webp/dual-mode-agent-studio.webp" alt="Dual-Mode & Agent Coding Studio" width="760">
+</p>
+
+> *Recordings showcase switching to Agent GUI, selecting Claude Code / Antigravity, running a prompt with live thoughts disclosure, and clicking "Insert in active note".*
+
+---
+
+### 2. Vault Context Injection & One-Click Note Saving
+Select text or attach active notes from your vault into the staged context tray. Let the agent analyze your knowledge base and save clean markdown back into daily folders.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/THANSHEER/media-hub/main/obsidian-omnichat/animated-webp/agent-context-notes.webp" alt="Vault Context Injection & Note Actions" width="760">
+</p>
+
+> *Recordings showcase staging notes with paperclip badges, sending context-enriched questions, and saving responses into `AI notes/YYYY-MM-DD`.*
+
+---
+
+### 3. Reorganized 4-Part Settings & CLI Diagnostics
+Explore the new segmented tab navigation (`Common`, `Browser`, `Agent GUI`, `Diagnostics`), 1-click auto-detect installed CLI binaries (`claude`, `agy`, `codex`), and discover sibling plugins.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/THANSHEER/media-hub/main/obsidian-omnichat/animated-webp/settings-and-diagnostics.webp" alt="4-Part Settings and Diagnostics" width="760">
+</p>
+
+> *Recordings showcase the tab switcher, clicking "Scan system" for instant CLI detection, and reviewing environment diagnostics.*
+
+---
+
+### 4. Web AI Service Switching & Selection Push
+Switch between 10 built-in AI web tools and push note highlights straight into web chats.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/THANSHEER/media-hub/main/obsidian-omnichat/animated-webp/Service%20switching.webp" alt="Service Switching" width="760">
 </p>
 
-### Send Selection to AI
-Easily select text in your active note and push it directly into the AI chat.
-<p align="center">
-  <img src="https://raw.githubusercontent.com/THANSHEER/media-hub/main/obsidian-omnichat/animated-webp/Send%20selection%20%E2%86%92%20AI.webp" alt="Send Selection" width="760">
-</p>
+---
 
-### Build & Inject Context
-Collect context from specific folders or notes and inject them straight into the chat prompt.
-<p align="center">
-  <img src="https://raw.githubusercontent.com/THANSHEER/media-hub/main/obsidian-omnichat/animated-webp/Build%20context%20%E2%86%92%20inject.webp" alt="Build Context" width="760">
-</p>
+## Other Plugins by the Creator
+
+Check out other plugins designed for your Obsidian workflow:
+
+<table>
+  <tr>
+    <td width="56" align="center" valign="middle">
+      <a href="https://github.com/THANSHEER/obsidian-mermaid-flow">
+        <img src="https://raw.githubusercontent.com/THANSHEER/obsidian-mermaid-flow/main/assets/logo/logo.svg" width="48" height="48" alt="Mermaid Flow Logo">
+      </a>
+    </td>
+    <td>
+      <strong><a href="https://github.com/THANSHEER/obsidian-mermaid-flow">Mermaid Flow</a></strong> &nbsp;<code>Visual diagrams</code><br>
+      Visual WYSIWYG diagram and flowchart editor for Mermaid in Obsidian. Drag nodes, draw connections, and edit visually without memorizing Mermaid syntax.
+    </td>
+  </tr>
+  <tr>
+    <td width="56" align="center" valign="middle">
+      <a href="https://github.com/THANSHEER/obsidian-noteflare">
+        <img src="https://raw.githubusercontent.com/THANSHEER/obsidian-noteflare/main/assets/logo.svg" width="48" height="48" alt="NoteFlare Logo">
+      </a>
+    </td>
+    <td>
+      <strong><a href="https://github.com/THANSHEER/obsidian-noteflare">NoteFlare</a></strong> &nbsp;<code>Publish & backup</code><br>
+      Publish your notes as a clean website and protect your Obsidian vault with automatic, scheduled private backups.
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## Roadmap
 
 - [x] Embed major AI services (ChatGPT, Claude, Gemini, Perplexity, DeepSeek, etc.)
-- [x] Quick service switching menu
-- [x] Add custom AI tool URLs
+- [x] Dual-mode architecture: Browser AI + Agent CLI & Studio
+- [x] Agent CLI integrations: Claude Code (`claude`), Antigravity (`agy`), OpenAI Codex (`codex`)
+- [x] Direct SSE API streaming (Anthropic Claude, OpenAI, Ollama)
+- [x] Collapsible `<think>` reasoning thoughts disclosure
+- [x] Reorganized 4-part segmented settings navigation
+- [x] Auto-detect installed CLI binaries on system PATH
+- [x] Sibling plugin discovery & release notes modal
+- [x] Split-panel dual AI view
 - [x] Send active editor selection directly to chat
-- [x] Build and inject vault context (notes, tabs, folders)
-- [x] Custom prompt templates
-- [x] Dual split-panel view
-- [x] Save responses to active notes
-- [x] Persistent webview sessions
-- [x] Dedicated settings for specific AI configurations
+- [x] Vault context injection (notes, tabs, folders)
+- [x] Custom prompt templates & auto-format responses
+- [x] Persistent webview sessions and stealth headers
+- [ ] Autonomous multi-turn file edits via agent tool loops
 - [ ] Auto-generate tags and properties for saved responses
-- [ ] Custom system prompt support for injected context
-- [x] Support for local LLMs (Ollama)
 
 ---
 
@@ -101,7 +166,7 @@ See [docs/installation.md](docs/installation.md) for full instructions on instal
 
 ## Privacy
 
-OmniChat does **not** run a backend server and does **not** collect telemetry or user data. Everything runs locally within your Obsidian environment. See our full [Privacy Policy](https://geekstash.dev/omnichat/privacy).
+OmniChat does **not** run a backend proxy server and does **not** collect telemetry or user data. CLI processes run locally on your machine, and direct API calls connect securely to the official endpoints. See our full [Privacy Policy](https://geekstash.dev/omnichat/privacy).
 
 ## Support
 
@@ -110,11 +175,11 @@ If you find this plugin helpful, consider supporting its development:
 [![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/THANSHEER)&nbsp;&nbsp;
 [![Buy Me a Coffee at ko-fi.com](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/thanshi)
 
-Or leave a star on [GitHub](https://github.com/THANSHEER/obsidian-omnichat).
+Or leave a star on [GitHub](https://github.com/THANSHEER/obsidian-omnichat) ⭐
 
 ## Disclaimer
 
-OmniChat is an independent plugin and is **not** affiliated with OpenAI, Anthropic, Google, Microsoft, xAI, DeepSeek, Moonshot AI, Perplexity, or Obsidian.
+OmniChat is an independent plugin and is **not** affiliated with Anthropic, OpenAI, Google, DeepSeek, Perplexity, Moonshot AI, or Obsidian.
 
 ## License
 

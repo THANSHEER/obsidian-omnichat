@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Minimal stubs for the Obsidian API so tests run in Node without Electron.
 
+if (typeof (globalThis as any).window === "undefined") {
+	(globalThis as any).window = globalThis;
+}
+
 export class App {
 	vault: any = {
 		getMarkdownFiles: () => [],
@@ -173,4 +177,8 @@ export abstract class FuzzySuggestModal<T> {
 export class Editor {
 	getSelection(): string { return ""; }
 	replaceSelection(_text: string): void {}
+}
+
+export function sanitizeHTMLToDom(_html: string): any {
+	return { nodeType: 1 };
 }

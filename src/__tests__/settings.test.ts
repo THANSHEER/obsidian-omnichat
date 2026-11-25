@@ -99,14 +99,53 @@ describe("DEFAULT_SETTINGS", () => {
 			"splitPanelUrl",
 			"customUserAgent",
 			"lastSeenVersion",
+			"defaultMode",
+			"splitPanelMode",
+			"agentEngine",
+			"claudeCliPath",
+			"antigravityCliPath",
+			"codexCliPath",
+			"customCliCommand",
+			"cliWorkingDirectory",
+			"useVaultAsCliCwd",
+			"dangerouslySkipPermissions",
+			"cliCustomArgs",
+			"cliEnvironmentVariables",
+			"anthropicApiKey",
+			"anthropicModel",
+			"openaiApiKey",
+			"openaiBaseUrl",
+			"openaiModel",
+			"showThoughts",
+			"autoScrollChat",
 		];
 		for (const key of requiredKeys) {
 			expect(Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)).toBe(true);
 		}
 	});
 
+	it("has defaultMode set to browser", () => {
+		expect(DEFAULT_SETTINGS.defaultMode).toBe("browser");
+	});
+
+	it("has splitPanelMode set to agent", () => {
+		expect(DEFAULT_SETTINGS.splitPanelMode).toBe("agent");
+	});
+
+	it("has agentEngine default to claude-cli", () => {
+		expect(DEFAULT_SETTINGS.agentEngine).toBe("claude-cli");
+	});
+
+	it("has useVaultAsCliCwd set to true", () => {
+		expect(DEFAULT_SETTINGS.useVaultAsCliCwd).toBe(true);
+	});
+
 	it("has formatAIResponse set to true", () => {
 		expect(DEFAULT_SETTINGS.formatAIResponse).toBe(true);
+	});
+
+	it("has adaptWebviewTheme enabled by default", () => {
+		expect(DEFAULT_SETTINGS.adaptWebviewTheme).toBe(true);
 	});
 
 	it("starts with empty lastSeenVersion until first load", () => {

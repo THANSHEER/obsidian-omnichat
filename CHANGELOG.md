@@ -2,14 +2,20 @@
 
 All notable changes to OmniChat are documented in this file.
 
-## [Unreleased]
+## [1.8.0] - 2026-11-25
 
-### Webview Load Watchdog & Recovery
+### v1.8.0 - Obsidian-Native UI Overhaul, Live Webview Theme Sync & Agent CLI Enhancements
 
-The panel can no longer get stuck on "Loading <service>…" forever when the embedded
-page never finishes loading.
+Brings a cohesive, Obsidian-native look and feel across both embedded web AI services and the local CLI/API Agent GUI, plus PR #31's webview load watchdog and recovery.
 
-### Fixes & Improvements
+### New Features & UI Improvements
+
+- **Obsidian-Native Design System**: Replaced custom translucent glass overrides and hardcoded palettes with Obsidian's native CSS variables (`--background-primary`, `--background-secondary`, `--background-modifier-border`, `--interactive-accent`, `--font-interface`, `--font-monospace`).
+- **Live Webview Theme Adaptation**: Added `WebviewThemeService` and an **Adapt web AI theme to Obsidian** setting (enabled by default in **Settings → Browser AI**) that syncs Obsidian's active color palette and scrollbars into embedded web AI services (ChatGPT, Claude, Gemini, DeepSeek, Perplexity) and updates live on `css-change`.
+- **Browser Toolbar & Response Extraction**: Replaced emoji toolbar labels with Lucide icons, added **Back**, **Forward**, and **Open in default browser** controls, and added best-effort extraction of the latest assistant response when saving without a selection.
+- **Structured CLI Streaming & Tool Call Cards**: Upgraded `claude-cli` to `--output-format stream-json --verbose` with collapsible **Tool Call cards** (`running` / `done` / `error`), collapsible **CLI diagnostics (stderr)** blocks, throttled live Markdown rendering during streaming, a live elapsed timer, and inline Ollama model / CLI permission controls.
+
+### Fixes & Improvements (PR #31 — Webview Load Watchdog & Recovery)
 
 - **Listener registration before first load**: `mountWebview()` now attaches all
   webview event listeners *before* assigning `src`. The initial load starts as soon as
