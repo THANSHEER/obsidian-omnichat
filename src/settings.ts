@@ -792,8 +792,7 @@ export class AIChatSettingTab extends PluginSettingTab {
 			.setName("CLI environment variables")
 			.setDesc("Additional environment variables injected into the process (one key=value per line).")
 			.addTextArea(t =>
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				t.setPlaceholder("ANTHROPIC_API_KEY=sk-...\nOPENAI_API_KEY=sk-...")
+				t.setPlaceholder("Enter key=value pairs (one per line)…")
 					.setValue(this.plugin.settings.cliEnvironmentVariables)
 					.onChange(async v => {
 						this.plugin.settings.cliEnvironmentVariables = v;

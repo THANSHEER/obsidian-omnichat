@@ -2,6 +2,23 @@
 
 All notable changes to OmniChat are documented in this file.
 
+## [1.8.2] - 2026-11-25
+
+### v1.8.2 - Obsidian Review Compliance & Release Asset Cleanup
+
+Resolves all Obsidian Plugin Review lint/security findings and streamlines release assets.
+
+### Fixes & Improvements
+
+- **Agent CLI Service (`src/services/AgentCliService.ts`)**:
+  - Removed the `new Function(...)` dynamic `require` fallback and its `eslint-disable` directive.
+  - Replaced the control-character regex literal with a `String.fromCharCode(0x1b)`-constructed `RegExp` in `stripAnsiCodes()`, removing the `no-control-regex` disable directive.
+  - Replaced untyped `Buffer` and global `process` references with `Uint8Array | string` (`TextDecoder`) and typed `NodeProcessLike` accessors to eliminate all `@typescript-eslint/no-unsafe-*` and unresolved type warnings.
+- **Settings (`src/settings.ts`)**:
+  - Removed the disallowed `obsidianmd/ui/sentence-case` disable directive and updated the CLI environment variables placeholder to sentence case.
+- **Release Workflow (`.github/workflows/release.yml`)**:
+  - Removed extra `.zip` and `.zip.sha256` release assets so releases only include `main.js`, `manifest.json`, and `styles.css`.
+
 ## [1.8.1] - 2026-11-25
 
 ### v1.8.1 - Pop-out Window Stability & Multi-Language i18n Support (zh-CN)

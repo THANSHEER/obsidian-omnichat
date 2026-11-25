@@ -16,12 +16,35 @@ interface NodeChildProcessModule {
 	) => NodeChildProcess;
 }
 
+type StreamChunk = Uint8Array | string;
+
+interface NodeProcessLike {
+	env?: Record<string, string | undefined>;
+	platform?: string;
+	getBuiltinModule?: (id: string) => unknown;
+}
+
+declare const process: NodeProcessLike | undefined;
+
+function getNodeProcess(): NodeProcessLike | undefined {
+	if (typeof window !== "undefined") {
+		const winProc = (window as unknown as { process?: NodeProcessLike }).process;
+		if (winProc) return winProc;
+	}
+	return typeof process !== "undefined" ? process : undefined;
+}
+
+function decodeChunk(chunk: StreamChunk): string {
+	if (typeof chunk === "string") return chunk;
+	return new TextDecoder().decode(chunk);
+}
+
 interface NodeChildProcess {
 	stdout?: {
-		on: (event: string, listener: (chunk: Buffer | string) => void) => void;
+		on: (event: string, listener: (chunk: StreamChunk) => void) => void;
 	};
 	stderr?: {
-		on: (event: string, listener: (chunk: Buffer | string) => void) => void;
+		on: (event: string, listener: (chunk: StreamChunk) => void) => void;
 	};
 	stdin?: {
 		write: (data: string) => void;
@@ -55,18 +78,11 @@ function getNodeRequire<T>(moduleName: string): T | null {
 				return win.require(moduleName) as T;
 			}
 		}
-		if (typeof process !== "undefined") {
-			const proc = process as unknown as { getBuiltinModule?: (id: string) => unknown };
-			if (typeof proc.getBuiltinModule === "function") {
-				const mod = proc.getBuiltinModule(moduleName);
-				if (mod) return mod as T;
-			}
+		const proc = getNodeProcess();
+		if (typeof proc?.getBuiltinModule === "function") {
+			const mod = proc.getBuiltinModule(moduleName);
+			if (mod) return mod as T;
 		}
-		// Fallback for node test runners without process.getBuiltinModule
-		// eslint-disable-next-line @typescript-eslint/no-implied-eval
-		const dynamicRequire = new Function("m", "try { return require(m); } catch { return null; }") as (id: string) => unknown;
-		const res = dynamicRequire(moduleName);
-		if (res) return res as T;
 	} catch {
 		// Module not accessible
 	}
@@ -78,19 +94,22 @@ export function isDesktopNodeAvailable(): boolean {
 	return getNodeRequire<NodeChildProcessModule>("child_process") !== null;
 }
 
+const ANSI_ESC = String.fromCharCode(0x1b);
+const ANSI_ESCAPE_REGEX = new RegExp(`${ANSI_ESC}(?:[@-Z\\\\-_]|\\[[0-?]*[ -/]*[@-~])`, "g");
+
 /** Strip ANSI control and color codes from terminal output. */
 export function stripAnsiCodes(input: string): string {
-	// eslint-disable-next-line no-control-regex
-	return input.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+	return input.replace(ANSI_ESCAPE_REGEX, "");
 }
 
 /** Build an augmented PATH environment string including standard user bin directories. */
 export function getAugmentedPath(): string {
 	const os = getNodeRequire<NodeOsModule>("os");
 	const path = getNodeRequire<NodePathModule>("path");
-	const home = os?.homedir() || process.env.HOME || "";
-	const currentPath = process.env.PATH || "";
-	const isWindows = (os?.platform() ?? process.platform) === "win32";
+	const proc = getNodeProcess();
+	const home = os?.homedir() || proc?.env?.HOME || "";
+	const currentPath = proc?.env?.PATH || "";
+	const isWindows = (os?.platform() ?? proc?.platform) === "win32";
 	const delimiter = isWindows ? ";" : ":";
 
 	const candidateDirs: string[] = [];
@@ -169,7 +188,7 @@ export function findExecutable(binName: string, customPath?: string): string | n
 		return null;
 	}
 
-	const isWindows = process.platform === "win32";
+	const isWindows = getNodeProcess()?.platform === "win32";
 	const extensions = isWindows ? [".exe", ".cmd", ".bat", ""] : [""];
 	const searchPath = getAugmentedPath();
 	const delimiter = isWindows ? ";" : ":";
@@ -214,8 +233,8 @@ export async function detectCli(binName: string, customPath?: string): Promise<C
 
 	return new Promise<CliDetectionResult>((resolve) => {
 		try {
-			const env = { ...process.env, PATH: getAugmentedPath() };
-			const isWindows = process.platform === "win32";
+			const env: Record<string, string | undefined> = { ...getNodeProcess()?.env, PATH: getAugmentedPath() };
+			const isWindows = getNodeProcess()?.platform === "win32";
 			const proc = cp.spawn(resolved, ["--version"], {
 				stdio: ["ignore", "pipe", "pipe"],
 				env,
@@ -225,12 +244,12 @@ export async function detectCli(binName: string, customPath?: string): Promise<C
 			let stdout = "";
 			let stderr = "";
 
-			proc.stdout?.on("data", (chunk: Buffer | string) => {
-				stdout += chunk.toString();
+			proc.stdout?.on("data", (chunk: StreamChunk) => {
+				stdout += decodeChunk(chunk);
 			});
 
-			proc.stderr?.on("data", (chunk: Buffer | string) => {
-				stderr += chunk.toString();
+			proc.stderr?.on("data", (chunk: StreamChunk) => {
+				stderr += decodeChunk(chunk);
 			});
 
 			const timeout = window.setTimeout(() => {
@@ -512,11 +531,11 @@ export function executeCliPrompt(options: CliExecutionOptions): CliExecutionHand
 	];
 
 	const cwd = getCliWorkingDirectory(app, settings);
-	const isWindows = process.platform === "win32";
+	const isWindows = getNodeProcess()?.platform === "win32";
 
 	// Environment variable injection
 	const env: Record<string, string | undefined> = {
-		...process.env,
+		...getNodeProcess()?.env,
 		PATH: getAugmentedPath(),
 	};
 
@@ -563,8 +582,8 @@ export function executeCliPrompt(options: CliExecutionOptions): CliExecutionHand
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 
-		proc.stdout?.on("data", (chunk: Buffer | string) => {
-			const clean = stripAnsiCodes(chunk.toString());
+		proc.stdout?.on("data", (chunk: StreamChunk) => {
+			const clean = stripAnsiCodes(decodeChunk(chunk));
 			if (useStreamJson) {
 				stdoutBuffer += clean;
 				const lines = stdoutBuffer.split("\n");
@@ -578,8 +597,8 @@ export function executeCliPrompt(options: CliExecutionOptions): CliExecutionHand
 			}
 		});
 
-		proc.stderr?.on("data", (chunk: Buffer | string) => {
-			const clean = stripAnsiCodes(chunk.toString());
+		proc.stderr?.on("data", (chunk: StreamChunk) => {
+			const clean = stripAnsiCodes(decodeChunk(chunk));
 			stderrAccumulated += clean;
 			if (clean.trim()) onStderr?.(clean);
 		});

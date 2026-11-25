@@ -53,21 +53,6 @@ jobs:
                   echo "version=${VERSION}" >> $GITHUB_OUTPUT
                   echo "plugin_id=${PLUGIN_ID}" >> $GITHUB_OUTPUT
 
-            - name: Package Release Zip & Checksum
-              id: package
-              run: |
-                  ZIP_NAME="obsidian-omnichat-${{ steps.meta.outputs.version }}.zip"
-                  FILES_TO_PACK="main.js manifest.json"
-                  if [ -f "styles.css" ]; then
-                    FILES_TO_PACK="$FILES_TO_PACK styles.css"
-                  fi
-                  zip -j "$ZIP_NAME" $FILES_TO_PACK
-                  sha256sum "$ZIP_NAME" > "${ZIP_NAME}.sha256"
-                  echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
-                  echo "sha_name=${ZIP_NAME}.sha256" >> $GITHUB_OUTPUT
-                  echo "Packaged $ZIP_NAME and computed checksum:"
-                  cat "${ZIP_NAME}.sha256"
-
             - name: Attest artifacts
               uses: actions/attest-build-provenance@v2
               with:
@@ -75,8 +60,6 @@ jobs:
                       main.js
                       manifest.json
                       styles.css
-                      ${{ steps.package.outputs.zip_name }}
-                      ${{ steps.package.outputs.sha_name }}
 
             - name: Extract release title and notes from CHANGELOG.md
               id: changelog
@@ -117,8 +100,6 @@ jobs:
                       main.js
                       manifest.json
                       styles.css
-                      ${{ steps.package.outputs.zip_name }}
-                      ${{ steps.package.outputs.sha_name }}
                   body_path: release_notes.md
                   make_latest: true
 
@@ -133,7 +114,5 @@ jobs:
                       main.js
                       manifest.json
                       styles.css
-                      ${{ steps.package.outputs.zip_name }}
-                      ${{ steps.package.outputs.sha_name }}
                   generate_release_notes: true
                   make_latest: true
