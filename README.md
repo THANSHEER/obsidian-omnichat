@@ -181,6 +181,10 @@ Or leave a star on [GitHub](https://github.com/THANSHEER/obsidian-omnichat) ⭐
 
 OmniChat is an independent plugin and is **not** affiliated with Anthropic, OpenAI, Google, DeepSeek, Perplexity, Moonshot AI, or Obsidian.
 
+## Contributors
+
+- **Simplified Chinese (`zh-CN`) translation**: [@imaginator-ycf](https://github.com/imaginator-ycf) ([#32](https://github.com/THANSHEER/obsidian-omnichat/issues/32))
+
 ## License
 
 MIT License. See [LICENSE.txt](LICENSE.txt) for details.

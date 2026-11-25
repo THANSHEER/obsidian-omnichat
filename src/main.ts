@@ -10,6 +10,7 @@ import { getCleanUserAgent, getChromeClientHints, getServiceKey, getFirefoxUserA
 import { AI_CHAT_VIEW_TYPE, AI_CHAT_SPLIT_VIEW_TYPE, AIChatView } from "./views/AIChatView";
 import { ChatHistoryService } from "./services/ChatHistoryService";
 import type { AgentEngineKey, UIMode } from "./types/agent";
+import { setLocale, t } from "./i18n";
 
 interface ElectronWebRequest {
 	onBeforeSendHeaders?: (
@@ -67,6 +68,7 @@ export default class AIChatPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		setLocale(this.settings.language);
 		this.chatHistory = new ChatHistoryService(this);
 		await this.chatHistory.loadStore();
 		this.pluginActive = true;
@@ -83,7 +85,7 @@ export default class AIChatPlugin extends Plugin {
 			(leaf: WorkspaceLeaf) => new AIChatView(leaf, this, false),
 		);
 
-		this.addRibbonIcon("messages-square", "Open OmniChat", () => {
+		this.addRibbonIcon("messages-square", t("cmd.openPanel"), () => {
 			void this.toggleView();
 		});
 

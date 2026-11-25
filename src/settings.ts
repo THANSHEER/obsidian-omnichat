@@ -8,6 +8,7 @@ import { renderSiblingPluginsSection } from "./modals/siblingPlugins";
 import { getCleanUserAgent, getServiceKey, normalizeUrl } from "./utils";
 import { AGENT_ENGINES, type AgentEngineKey, type UIMode } from "./types/agent";
 import { detectCli, findExecutable, isDesktopNodeAvailable, getCliWorkingDirectory } from "./services/AgentCliService";
+import { SUPPORTED_LOCALES, setLocale, t } from "./i18n";
 
 export interface ContextItem {
 	path: string;
@@ -50,6 +51,7 @@ export interface DockSettings {
 	autoRefreshMinutes: number;
 	autoClearContext: boolean;
 	contextPrefix: string;
+	language: string;
 	theme: ThemeMode;
 	adaptWebviewTheme: boolean;
 	sendSelectionEnabled: boolean;
@@ -107,6 +109,7 @@ export const DEFAULT_SETTINGS: DockSettings = {
 	autoRefreshMinutes:  60,
 	autoClearContext:    false,
 	contextPrefix:       "",
+	language:            "auto",
 	theme:               "auto",
 	adaptWebviewTheme:   true,
 	sendSelectionEnabled: true,
@@ -173,19 +176,19 @@ export class AIChatSettingTab extends PluginSettingTab {
 		const navEl = containerEl.createDiv({ cls: "oc-settings-nav" });
 
 		const tabs: { key: SettingsTabSection; label: string; icon: string }[] = [
-			{ key: "common",      label: "General & common", icon: "settings" },
-			{ key: "browser",     label: "Browser AI",       icon: "globe" },
-			{ key: "agent_gui",   label: "Agent CLI & API",  icon: "terminal" },
-			{ key: "diagnostics", label: "Diagnostics & help", icon: "activity" },
+			{ key: "common",      label: t("settings.tab.general"),  icon: "settings" },
+			{ key: "browser",     label: t("settings.tab.browser"),  icon: "globe" },
+			{ key: "agent_gui",   label: t("settings.tab.agent"),    icon: "terminal" },
+			{ key: "diagnostics", label: "Diagnostics & help",       icon: "activity" },
 		];
 
-		for (const t of tabs) {
+		for (const tab of tabs) {
 			const btn = navEl.createEl("button", {
-				cls: `oc-settings-tab-btn ${this.activeTab === t.key ? "is-active mod-cta" : ""}`,
-				text: t.label,
+				cls: `oc-settings-tab-btn ${this.activeTab === tab.key ? "is-active mod-cta" : ""}`,
+				text: tab.label,
 			});
 			btn.addEventListener("click", () => {
-				this.activeTab = t.key;
+				this.activeTab = tab.key;
 				this.renderSettings();
 			});
 		}
@@ -214,8 +217,26 @@ export class AIChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Interface & modes").setHeading();
 
 		new Setting(containerEl)
-			.setName("Default view mode")
-			.setDesc("Choose whether OmniChat opens in browser AI mode or agent CLI/API GUI mode.")
+			.setName(t("settings.general.language"))
+			.setDesc(t("settings.general.languageDesc"))
+			.addDropdown(d => {
+				d.addOption("auto", t("settings.general.languageAuto"));
+				for (const loc of SUPPORTED_LOCALES) {
+					d.addOption(loc.code, loc.nativeLabel);
+				}
+				d.setValue(this.plugin.settings.language || "auto")
+					.onChange(async v => {
+						this.plugin.settings.language = v;
+						setLocale(v);
+						await this.plugin.saveSettings();
+						this.plugin.rerenderOpenViews();
+						this.renderSettings();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName(t("settings.general.defaultMode"))
+			.setDesc(t("settings.general.defaultModeDesc"))
 			.addDropdown(d => {
 				d.addOption("browser", "Browser AI (web embedding)");
 				d.addOption("agent", "Agent CLI & API (coding GUI)");
@@ -230,8 +251,8 @@ export class AIChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Split panel").setHeading();
 
 		new Setting(containerEl)
-			.setName("Open split panel")
-			.setDesc("Open a second OmniChat panel — independently toggle between browser and agent modes.")
+			.setName(t("settings.general.openSplit"))
+			.setDesc(t("settings.general.openSplitDesc"))
 			.addButton(btn =>
 				btn.setButtonText("Open panel").onClick(() => void this.plugin.openSplitPanel()),
 			);
@@ -250,13 +271,13 @@ export class AIChatSettingTab extends PluginSettingTab {
 					});
 			});
 
-		new Setting(containerEl).setName("Context & note injection").setHeading();
+		new Setting(containerEl).setName(t("settings.context.heading")).setHeading();
 
 		new Setting(containerEl)
-			.setName("Send selected text to AI")
-			.setDesc("Enable injecting editor selections into the active AI service or agent.")
-			.addToggle(t =>
-				t.setValue(this.plugin.settings.sendSelectionEnabled)
+			.setName(t("settings.context.sendSelection"))
+			.setDesc(t("settings.context.sendSelectionDesc"))
+			.addToggle(tg =>
+				tg.setValue(this.plugin.settings.sendSelectionEnabled)
 					.onChange(async v => {
 						this.plugin.settings.sendSelectionEnabled = v;
 						await this.plugin.saveSettings();
@@ -264,10 +285,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Auto-add active note on open")
-			.setDesc("Add the current note to context when OmniChat opens.")
-			.addToggle(t =>
-				t.setValue(this.plugin.settings.autoContextOnOpen)
+			.setName(t("settings.context.autoAdd"))
+			.setDesc(t("settings.context.autoAddDesc"))
+			.addToggle(tg =>
+				tg.setValue(this.plugin.settings.autoContextOnOpen)
 					.onChange(async v => {
 						this.plugin.settings.autoContextOnOpen = v;
 						await this.plugin.saveSettings();
@@ -275,10 +296,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Strip frontmatter")
-			.setDesc("Remove the YAML --- block from notes before sending as context.")
-			.addToggle(t =>
-				t.setValue(this.plugin.settings.stripFrontmatter)
+			.setName(t("settings.context.stripFrontmatter"))
+			.setDesc(t("settings.context.stripFrontmatterDesc"))
+			.addToggle(tg =>
+				tg.setValue(this.plugin.settings.stripFrontmatter)
 					.onChange(async v => {
 						this.plugin.settings.stripFrontmatter = v;
 						await this.plugin.saveSettings();
@@ -286,10 +307,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Auto-clear context after send")
-			.setDesc("Clear context items automatically after clicking send.")
-			.addToggle(t =>
-				t.setValue(this.plugin.settings.autoClearContext)
+			.setName(t("settings.context.autoClear"))
+			.setDesc(t("settings.context.autoClearDesc"))
+			.addToggle(tg =>
+				tg.setValue(this.plugin.settings.autoClearContext)
 					.onChange(async v => {
 						this.plugin.settings.autoClearContext = v;
 						await this.plugin.saveSettings();
@@ -298,10 +319,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Context prefix")
-			.setDesc("Text prepended to every context send. Leave blank to send notes as-is.")
-			.addTextArea(t =>
-				t.setPlaceholder("E.g. Here are my notes, please help me:")
+			.setName(t("settings.context.prefix"))
+			.setDesc(t("settings.context.prefixDesc"))
+			.addTextArea(ta =>
+				ta.setPlaceholder(t("settings.context.prefixPlaceholder"))
 					.setValue(this.plugin.settings.contextPrefix)
 					.onChange(async v => {
 						this.plugin.settings.contextPrefix = v;
@@ -310,10 +331,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Max context length")
-			.setDesc("Character limit for context sent to AI.")
-			.addText(t =>
-				t.setPlaceholder(String(DEFAULT_SETTINGS.maxContextLength))
+			.setName(t("settings.context.maxLength"))
+			.setDesc(t("settings.context.maxLengthDesc"))
+			.addText(txt =>
+				txt.setPlaceholder(String(DEFAULT_SETTINGS.maxContextLength))
 					.setValue(String(this.plugin.settings.maxContextLength))
 					.onChange(async v => {
 						const n = parseInt(v, 10);
@@ -419,12 +440,12 @@ export class AIChatSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Appearance & startup").setHeading();
 
 		new Setting(containerEl)
-			.setName("Theme")
-			.setDesc("Header and Chrome color scheme — auto follows Obsidian.")
+			.setName(t("settings.general.theme"))
+			.setDesc(t("settings.general.themeDesc"))
 			.addDropdown(d => {
-				d.addOption("auto",  "Auto");
-				d.addOption("light", "Light");
-				d.addOption("dark",  "Dark");
+				d.addOption("auto",  t("common.auto"));
+				d.addOption("light", t("common.light"));
+				d.addOption("dark",  t("common.dark"));
 				d.setValue(this.plugin.settings.theme)
 					.onChange(async v => {
 						this.plugin.settings.theme = v as ThemeMode;
@@ -434,10 +455,10 @@ export class AIChatSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Open on startup")
-			.setDesc("Restore OmniChat when Obsidian starts.")
-			.addToggle(t =>
-				t.setValue(this.plugin.settings.openOnStartup)
+			.setName(t("settings.general.openOnStartup"))
+			.setDesc(t("settings.general.openOnStartupDesc"))
+			.addToggle(tg =>
+				tg.setValue(this.plugin.settings.openOnStartup)
 					.onChange(async v => {
 						this.plugin.settings.openOnStartup = v;
 						await this.plugin.saveSettings();
@@ -449,13 +470,13 @@ export class AIChatSettingTab extends PluginSettingTab {
 	// ── PART 2: DEDICATED BROWSER AI SETTINGS ─────────────────
 	// ═══════════════════════════════════════════════════════════
 	private renderBrowserSection(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName("AI web services").setHeading();
+		new Setting(containerEl).setName(t("settings.browser.servicesHeading")).setHeading();
 
 		new Setting(containerEl)
-			.setName("Adapt web AI theme to Obsidian")
-			.setDesc("Sync Obsidian's active color palette and scrollbars into embedded web AI services.")
-			.addToggle(t =>
-				t.setValue(this.plugin.settings.adaptWebviewTheme)
+			.setName(t("settings.browser.adaptTheme"))
+			.setDesc(t("settings.browser.adaptThemeDesc"))
+			.addToggle(tg =>
+				tg.setValue(this.plugin.settings.adaptWebviewTheme)
 					.onChange(async v => {
 						this.plugin.settings.adaptWebviewTheme = v;
 						await this.plugin.saveSettings();
@@ -464,8 +485,8 @@ export class AIChatSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Default browser service")
-			.setDesc("Which web AI opens when browser mode first loads.")
+			.setName(t("settings.general.defaultService"))
+			.setDesc(t("settings.general.defaultServiceDesc"))
 			.addDropdown(d => {
 				for (const m of SERVICE_META) d.addOption(m.key, m.label);
 				d.setValue(getServiceKey(this.plugin.settings.webAppUrl) ?? SERVICE_META[0].key)

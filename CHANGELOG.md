@@ -2,6 +2,26 @@
 
 All notable changes to OmniChat are documented in this file.
 
+## [1.8.1] - 2026-11-25
+
+### v1.8.1 - Pop-out Window Stability & Multi-Language i18n Support (zh-CN)
+
+Resolves the detached pop-out window crash (Issue #33) and introduces a flexible multi-language localization system with Simplified Chinese (`zh-CN`) support (Issue #32).
+
+### Fixes & Improvements
+
+- **Pop-Out Window Crash Fix ([#33](https://github.com/THANSHEER/obsidian-omnichat/issues/33))**:
+  - Tears down the embedded `<webview>` cleanly on tab `dragstart` (while preserving the current URL) and restores it on `dragend` if the drag is cancelled in the same window.
+  - Registers `onWindowMigrated` on `contentEl` to remount the `<webview>` cleanly in the destination `BrowserWindow` instead of reparenting a live Chromium `GuestView` across windows.
+  - Uses the view's own `Window` context (`this.contentEl.win ?? activeWindow`) for timers and external links in pop-out windows.
+
+### New Features
+
+- **Flexible Multi-Language Support & Simplified Chinese (`zh-CN`) ([#32](https://github.com/THANSHEER/obsidian-omnichat/issues/32))**:
+  - Added an extensible `src/i18n/` localization registry (`t(key, vars?)`, `setLocale()`, `SUPPORTED_LOCALES`) with automatic Obsidian language detection and English fallback so new languages can be added easily.
+  - Added **Simplified Chinese (`zh-CN`)** translations (contributed by [@imaginator-ycf](https://github.com/imaginator-ycf), credited in `README.md`).
+  - Added a **Language** selector (`Auto (follow Obsidian)`, `English`, `简体中文`) under **Settings → General**.
+
 ## [1.8.0] - 2026-11-25
 
 ### v1.8.0 - Obsidian-Native UI Overhaul, Live Webview Theme Sync & Agent CLI Enhancements

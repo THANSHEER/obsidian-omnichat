@@ -8,6 +8,7 @@ import { SaveDestinationModal } from "../modals/SaveDestinationModal";
 import { OAuthLoginModal } from "../modals/OAuthLoginModal";
 import { AgentChatUI } from "./AgentChatUI";
 import { AGENT_ENGINES, type AgentEngineKey, type UIMode } from "../types/agent";
+import { t } from "../i18n";
 import {
 	buildClearWebviewThemeScript,
 	buildWebviewThemeScript,
@@ -111,9 +112,15 @@ export class AIChatView extends ItemView {
 	private loadTimer:        number | null = null;
 	private fallbackMsgEl:    HTMLElement | null = null;
 	private fallbackRetryEl:  HTMLButtonElement | null = null;
+	/** True while the leaf tab is being dragged so we avoid reparenting a live <webview> across BrowserWindows. */
+	private suspendedForDrag  = false;
 
 	/** How long a single page load may stay pending before the failure state is shown. */
 	private static readonly LOAD_TIMEOUT_MS = 25_000;
+
+	private getWin(): Window {
+		return this.contentEl.win ?? activeWindow;
+	}
 
 	constructor(leaf: WorkspaceLeaf, plugin: AIChatPlugin, isPrimary = true) {
 		super(leaf);
@@ -139,6 +146,7 @@ export class AIChatView extends ItemView {
 		// Guaranteed cleanup on unload, even if onClose is bypassed (stopIdleTimer is idempotent).
 		this.register(() => this.stopIdleTimer());
 		this.registerEvent(this.app.workspace.on("css-change", () => this.applyWebviewTheme()));
+		this.registerWindowMigrationHandlers();
 		if (this.plugin.settings.autoContextOnOpen) this.autoAddActiveFile();
 	}
 
@@ -324,16 +332,16 @@ export class AIChatView extends ItemView {
 			cls: `vc-mode-btn ${this.currentMode === "browser" ? "is-active" : ""}`,
 		});
 		setIcon(this.browserModeBtnEl.createSpan({ cls: "vc-mode-icon" }), "globe");
-		this.browserModeBtnEl.createSpan({ text: "Browser" });
-		this.browserModeBtnEl.title = "Switch to browser AI mode";
+		this.browserModeBtnEl.createSpan({ text: t("view.mode.browser") });
+		this.browserModeBtnEl.title = t("view.mode.browserTitle");
 		this.browserModeBtnEl.addEventListener("click", () => this.setMode("browser"));
 
 		this.agentModeBtnEl = modeGroup.createEl("button", {
 			cls: `vc-mode-btn ${this.currentMode === "agent" ? "is-active" : ""}`,
 		});
 		setIcon(this.agentModeBtnEl.createSpan({ cls: "vc-mode-icon" }), "terminal");
-		this.agentModeBtnEl.createSpan({ text: "Agent" });
-		this.agentModeBtnEl.title = "Switch to agent CLI & API mode";
+		this.agentModeBtnEl.createSpan({ text: t("view.mode.agent") });
+		this.agentModeBtnEl.title = t("view.mode.agentTitle");
 		this.agentModeBtnEl.addEventListener("click", () => this.setMode("agent"));
 
 		this.svcDotEl = row.createSpan({ cls: "vc-svc-dot" });
@@ -371,8 +379,8 @@ export class AIChatView extends ItemView {
 
 		this.backBtnEl = row.createEl("button", { cls: "vc-reload-btn vc-nav-btn" });
 		setIcon(this.backBtnEl, "arrow-left");
-		this.backBtnEl.title = "Back";
-		this.backBtnEl.setAttribute("aria-label", "Back");
+		this.backBtnEl.title = t("view.nav.back");
+		this.backBtnEl.setAttribute("aria-label", t("view.nav.back"));
 		this.backBtnEl.disabled = true;
 		this.backBtnEl.addEventListener("click", () => {
 			if (this.webview?.canGoBack?.()) this.webview.goBack?.();
@@ -380,8 +388,8 @@ export class AIChatView extends ItemView {
 
 		this.forwardBtnEl = row.createEl("button", { cls: "vc-reload-btn vc-nav-btn" });
 		setIcon(this.forwardBtnEl, "arrow-right");
-		this.forwardBtnEl.title = "Forward";
-		this.forwardBtnEl.setAttribute("aria-label", "Forward");
+		this.forwardBtnEl.title = t("view.nav.forward");
+		this.forwardBtnEl.setAttribute("aria-label", t("view.nav.forward"));
 		this.forwardBtnEl.disabled = true;
 		this.forwardBtnEl.addEventListener("click", () => {
 			if (this.webview?.canGoForward?.()) this.webview.goForward?.();
@@ -389,17 +397,17 @@ export class AIChatView extends ItemView {
 
 		this.reloadBtnEl = row.createEl("button", { cls: "vc-reload-btn" });
 		setIcon(this.reloadBtnEl, "rotate-cw");
-		this.reloadBtnEl.title = "Reload active page or agent connection";
-		this.reloadBtnEl.setAttribute("aria-label", "Reload");
+		this.reloadBtnEl.title = t("view.nav.reload");
+		this.reloadBtnEl.setAttribute("aria-label", t("common.reload"));
 		this.reloadBtnEl.addEventListener("click", () => this.reloadWebview());
 
 		this.openExternalBtnEl = row.createEl("button", { cls: "vc-reload-btn vc-nav-btn" });
 		setIcon(this.openExternalBtnEl, "external-link");
-		this.openExternalBtnEl.title = "Open in default browser";
-		this.openExternalBtnEl.setAttribute("aria-label", "Open in default browser");
+		this.openExternalBtnEl.title = t("view.nav.openExternal");
+		this.openExternalBtnEl.setAttribute("aria-label", t("view.nav.openExternal"));
 		this.openExternalBtnEl.addEventListener("click", () => {
 			const url = this.webview?.getURL?.() || this.activeUrl;
-			if (url) window.open(url);
+			if (url) this.getWin().open(url);
 		});
 	}
 
@@ -637,7 +645,7 @@ export class AIChatView extends ItemView {
 				).open();
 			} else {
 				// Regular external links (like citations) open safely in the user's default system browser.
-				window.open(ev.url);
+				this.getWin().open(ev.url);
 			}
 		});
 
@@ -655,13 +663,69 @@ export class AIChatView extends ItemView {
 		this.webviewReady = false;
 	}
 
+	/**
+	 * Reparenting a live Electron <webview> across BrowserWindows crashes Chromium natively
+	 * (especially on Windows 11). Tear down before tab drag moves the DOM and remount in
+	 * the destination window once migration finishes.
+	 */
+	private registerWindowMigrationHandlers(): void {
+		const tabHeaderEl = (this.leaf as unknown as { tabHeaderEl?: HTMLElement }).tabHeaderEl;
+		if (tabHeaderEl) {
+			this.registerDomEvent(tabHeaderEl, "dragstart", () => {
+				this.suspendWebviewForWindowMove();
+			});
+			this.registerDomEvent(tabHeaderEl, "dragend", () => {
+				if (!this.suspendedForDrag) return;
+				this.suspendedForDrag = false;
+				this.remountWebviewIfNeeded();
+			});
+		}
+
+		this.register(
+			this.contentEl.onWindowMigrated(() => {
+				this.remountWebviewAfterWindowMove();
+			}),
+		);
+	}
+
+	private suspendWebviewForWindowMove(): void {
+		if (!this.webview) return;
+		const liveUrl = this.webview.getURL?.();
+		if (liveUrl && liveUrl !== "about:blank") {
+			this.activeUrl = liveUrl;
+		}
+		this.suspendedForDrag = true;
+		this.destroyWebview();
+	}
+
+	private remountWebviewAfterWindowMove(): void {
+		this.suspendedForDrag = false;
+		if (this.webview) {
+			const liveUrl = this.webview.getURL?.();
+			if (liveUrl && liveUrl !== "about:blank") {
+				this.activeUrl = liveUrl;
+			}
+			this.destroyWebview();
+		}
+		this.getWin().requestAnimationFrame(() => {
+			this.remountWebviewIfNeeded();
+		});
+	}
+
+	private remountWebviewIfNeeded(): void {
+		if (!this.hostEl || this.webview) return;
+		if (this.currentMode !== "browser" || getServiceKey(this.activeUrl) === "ollama") return;
+		this.setLoading(true);
+		this.mountWebview();
+	}
+
 	// ── Load watchdog ─────────────────────────────────────────
 
 	/** Arms a timer that trips into the failure state if a load never completes. */
 	private armLoadWatchdog(): void {
 		this.clearLoadWatchdog();
 		if (getServiceKey(this.activeUrl) === "ollama") return;
-		this.loadTimer = window.setTimeout(() => {
+		this.loadTimer = this.getWin().setTimeout(() => {
 			this.loadTimer = null;
 			if (this.webviewReady) return;
 			this.showLoadFailure(`${this.currentServiceLabel()} took too long to load.`);
@@ -670,7 +734,7 @@ export class AIChatView extends ItemView {
 
 	private clearLoadWatchdog(): void {
 		if (this.loadTimer !== null) {
-			window.clearTimeout(this.loadTimer);
+			this.getWin().clearTimeout(this.loadTimer);
 			this.loadTimer = null;
 		}
 	}
@@ -706,7 +770,7 @@ export class AIChatView extends ItemView {
 		const mins = this.plugin.settings.autoRefreshMinutes;
 		if (mins <= 0) return;
 		const ms = mins * 60_000;
-		this.idleTimer = window.setInterval(() => {
+		this.idleTimer = this.getWin().setInterval(() => {
 			if (getServiceKey(this.activeUrl) === "ollama") return;
 			if (Date.now() - this.lastInteractedAt >= ms && this.webviewReady && this.webview) {
 				this.webviewReady = false;
@@ -719,7 +783,7 @@ export class AIChatView extends ItemView {
 	}
 
 	private stopIdleTimer(): void {
-		if (this.idleTimer !== null) { window.clearInterval(this.idleTimer); this.idleTimer = null; }
+		if (this.idleTimer !== null) { this.getWin().clearInterval(this.idleTimer); this.idleTimer = null; }
 	}
 
 	// ── Targeted DOM updates ──────────────────────────────────

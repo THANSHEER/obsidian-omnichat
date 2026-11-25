@@ -4,6 +4,7 @@ import { FeedbackModal } from "./FeedbackModal";
 import { FeatureRequestModal } from "./FeatureRequestModal";
 import { GITHUB_REPO } from "../feedback/constants";
 import { renderSiblingPluginsSection } from "./siblingPlugins";
+import { t } from "../i18n";
 
 /** Official OmniChat logo SVG (from assests/logo.svg), without SVG filters stripped by sanitizeHTMLToDom. */
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 80 80" fill="none" class="oc-modal-logo" aria-hidden="true">
@@ -69,12 +70,12 @@ export class UpdateNotesModal extends Modal {
 		logoWrap.appendChild(sanitizeHTMLToDom(LOGO_SVG));
 
 		const titleCol = header.createDiv({ cls: "oc-update-title-col" });
-		titleCol.createEl("h3", { text: `What's new in ${this.version}` });
+		titleCol.createEl("h3", { text: t("modal.whatsNew.title", { version: this.version }) });
 
 		const metaRow = titleCol.createDiv({ cls: "oc-update-meta-row" });
 		metaRow.createSpan({
 			cls: "oc-update-version-badge",
-			text: `Updated from ${this.previousVersion}`,
+			text: t("modal.whatsNew.updatedFrom", { previous: this.previousVersion }),
 		});
 		if (this.notes?.htmlUrl) {
 			const ghLink = metaRow.createEl("a", {
@@ -110,21 +111,21 @@ export class UpdateNotesModal extends Modal {
 		// ── Action Buttons ────────────────────────────────────────
 		const actions = contentEl.createDiv({ cls: "oc-feedback-actions oc-update-actions" });
 
-		const closeBtn = actions.createEl("button", { text: "Close" });
+		const closeBtn = actions.createEl("button", { text: t("common.close") });
 		closeBtn.addEventListener("click", () => this.close());
 
-		const issuesBtn = actions.createEl("button", { text: "GitHub issues" });
+		const issuesBtn = actions.createEl("button", { text: t("modal.whatsNew.githubIssues") });
 		issuesBtn.addEventListener("click", () => {
 			window.open(`https://github.com/${GITHUB_REPO}/issues`, "_blank");
 		});
 
-		const featureBtn = actions.createEl("button", { text: "Request a feature" });
+		const featureBtn = actions.createEl("button", { text: t("modal.whatsNew.requestFeature") });
 		featureBtn.addEventListener("click", () => {
 			this.close();
 			new FeatureRequestModal(this.app).open();
 		});
 
-		const feedbackBtn = actions.createEl("button", { text: "Give feedback", cls: "mod-cta" });
+		const feedbackBtn = actions.createEl("button", { text: t("modal.whatsNew.giveFeedback"), cls: "mod-cta" });
 		feedbackBtn.addEventListener("click", () => {
 			this.close();
 			new FeedbackModal(this.app, "post-update").open();

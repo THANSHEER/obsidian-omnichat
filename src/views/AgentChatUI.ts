@@ -6,6 +6,7 @@ import { streamAnthropic, streamOpenAI, streamOllama, fetchOllamaModels } from "
 import { ChatHistoryService } from "../services/ChatHistoryService";
 import { VaultQueryService } from "../services/VaultQueryService";
 import { ContextSearchModal } from "../modals/ContextSearchModal";
+import { t } from "../i18n";
 
 function formatRelativeTime(timestamp: number): string {
 	const diff = Date.now() - timestamp;
@@ -188,8 +189,8 @@ export class AgentChatUI {
 		});
 		const attachIcon = attachNoteBtn.createSpan();
 		setIcon(attachIcon, "file-plus");
-		attachNoteBtn.createSpan({ text: "Attach Note" });
-		attachNoteBtn.title = "Search & attach a note from your vault";
+		attachNoteBtn.createSpan({ text: t("agent.attachContext") });
+		attachNoteBtn.title = t("view.context.addTitle");
 		attachNoteBtn.addEventListener("click", () => this.openNotePicker());
 
 		this.vaultBannerEl = accessories.createDiv({ cls: "agent-vault-active-badge" });
